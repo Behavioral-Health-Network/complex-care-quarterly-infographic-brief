@@ -1,0 +1,47 @@
+---
+title: "<program> <period> <report-type>"
+---
+
+# ```{r}
+# #| label: load-<program>-data
+
+# Set default fallback parameters for running code interactively during
+# development since Quarto params are only passed when rendering the document
+# if (
+#   !exists(
+#     "params"
+#   )
+# ) {
+#   params <- list(
+#     start_date = "2026-01-01",
+#     end_date = "2026-03-31",
+#     fiscal_system = "state"
+#   )
+# }
+#
+# params$start_date <- lubridate::ymd(
+#  params$start_date
+#  )
+# params$end_date <- lubridate::ymd(
+#  params$end_date
+#  )
+#
+# Load ETL output
+# source(
+#   "R/load_data.R"
+# )
+#
+# Run the function to load <program> data
+# <program>_data <- load_<program>_data()
+#
+# Build subsets
+# <program>_subsets <- build_subsets(
+#  full_data = <program>_data$<program>_data$<program>_full_data,
+#  start_date = params$start_date,
+#  end_date   = params$end_date,
+#  fiscal_system = params$fiscal_system
+# )
+#
+# <program>_initiated  <- <program>_subsets$initiated_within_period
+# <program>_dismissed  <- <program>_subsets$dismissed_within_period
+# ```

@@ -1,0 +1,56 @@
+project:
+  title: "Quarto Reporting Template"
+  type: default
+  resources:
+    - styles/
+    - assets/
+
+# ----------------------------------------------------------
+# Default profile: HTML-first infographic briefs
+# ----------------------------------------------------------
+format:
+  html:
+    theme: styles/report-html.scss
+    css:
+      - styles/fontawesome/css/all.min.css
+    output-dir: _output/html
+    toc: false
+    page-layout: full
+    smooth-scroll: true
+    embed-resources: true
+    html-table-processing: none
+
+  pdf:
+    pdf-engine: pagedjs-cli
+    output-dir: _output/pdf
+
+# ----------------------------------------------------------
+# Additional profiles for narrative LaTeX reports
+# ----------------------------------------------------------
+profiles:
+  latex:
+    format:
+      pdf:
+        documentclass: article
+        geometry: "margin=0.75in"
+        keep-tex: false
+        output-dir: _output/pdf
+        toc: false
+        number-sections: false
+        include-in-header: styles/latex-preamble.tex
+
+params:
+  program: "<program>"
+  start_date: "2026-01-01"
+  end_date: "2026-03-31"
+  fiscal_system: "state"
+
+execute:
+  echo: false
+  warning: false
+  message: false
+  include: false
+
+extensions:
+  - shafayetShafee/bsicons
+#  - filter/your-filter.lua (placeholder in case a filter is added)

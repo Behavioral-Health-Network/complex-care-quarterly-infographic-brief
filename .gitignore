@@ -1,0 +1,141 @@
+# ============================================================
+# 1. Quarto artifacts (HTML/PDF/etc.)
+# ============================================================
+_site/
+_book/
+.quarto/
+site_libs/
+**/libs/
+html_test_files/
+
+# Per-document intermediates
+*.qmd.json
+*.html.json
+*.knit.md
+*.utf8.md
+*_cache/
+
+# Common rendered outputs
+*.pdf
+*.docx
+
+# Ignore HTML everywhere except rendered output directory
+*.html
+!_output/html/*.html
+
+# ============================================================
+# 2. ETL intermediate data (cache outputs)
+# ============================================================
+data_intermediate/*
+!data_intermediate/.gitkeep
+
+# ============================================================
+# 3. R / RStudio artifacts
+# ============================================================
+.Rhistory
+.Rapp.history
+.RData
+.RDataTmp
+.Ruserdata
+.Rproj.user/
+.Renviron
+*.rds
+
+# R CMD build/check outputs
+/*.tar.gz
+/*.Rcheck/
+
+# Example code in package build process
+*-Ex.R
+
+# R Markdown / Bookdown
+_bookdown_files/
+_book/
+
+# knitr and R markdown default cache directories
+*_cache/
+/cache/
+
+# produced vignettes
+vignettes/*.html
+vignettes/*.pdf
+
+# OAuth2 token
+.httr-oauth
+
+# ============================================================
+# 4. Python artifacts
+# ============================================================
+__pycache__/
+.ipynb_checkpoints/
+.env/
+.venv/
+
+# ============================================================
+# 5. Editor artifacts
+# ============================================================
+.vscode/
+
+# ============================================================
+# 6. LaTeX auxiliary files
+# ============================================================
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+*.lb
+
+# Beamer
+*.snm
+*.pre
+*.vrb
+*.nav
+
+# Latexmk / Synctex
+*.fdb_latexmk
+*.synctex*
+*.pdfsync
+
+# ============================================================
+# 7. Bibliography auxiliary files
+# ============================================================
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.run.xml
+
+# ============================================================
+# 8. Miscellaneous outputs
+# ============================================================
+*.doc
+*.xlsx
+*.xls
+*.csv
+*.ppt
+*.jpg
+*.tex
+
+# ============================================================
+# 9. PNG handling
+# ============================================================
+*.png
+!images/*.png
+
+# ============================================================
+# 10. Quarto freeze artifacts
+# ============================================================
+_freeze/
+
+# ============================================================
+# 11. Posit AI files
+# ============================================================
+.positai
