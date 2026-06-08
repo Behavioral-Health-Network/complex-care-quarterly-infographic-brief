@@ -1,5 +1,5 @@
 project:
-  title: "Quarto Reporting Template"
+  title: "Complex Care Quarterly Infographic Brief"
   type: default
   resources:
     - styles/
@@ -40,7 +40,7 @@ profiles:
         include-in-header: styles/latex-preamble.tex
 
 params:
-  program: "<program>"
+  program: "complex-care"
   start_date: "2026-01-01"
   end_date: "2026-03-31"
   fiscal_system: "state"
