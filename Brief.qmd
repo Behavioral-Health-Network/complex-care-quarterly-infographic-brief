@@ -1,0 +1,115 @@
+---
+title: "Complex Care Quarterly Brief"
+format: html
+---
+
+{{< include index.qmd >}}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+### New Clients by Program Segment
+```{r}
+#| echo: false
+#| include: true
+
+monthly_table
+```
+:::
+
+::: {.column width="10%"}
+:::
+
+::: {.column width="40%"}
+### Progress Toward FY26 Admission Goal
+```{r}
+#| echo: false
+#| include: true
+#| fig-width: 5
+#| fig-height: 0.5
+#| fig-cap: "As of March 31, 2026, 28 of 35 FY26 admissions (80%) had been achieved."
+
+print(ytd_goal_plot)
+```
+
+:::
+
+::::
+
+<!-- New Row -->
+### Referral Source and Cohort Selection
+:::: {.columns}
+
+::: {.column width = "50%"}
+
+```{r}
+#| echo: false
+#| include: true
+#| fig-cap: "Note: Counts reflect distinct clients. Some clients were referred multiple times within the quarter"
+
+ref_source_table
+
+```
+:::
+
+::: {.column width="10%"}
+:::
+
+::: {.column width = "40%"}
+<div style="margin-top: 50px;"></div>
+<!-- #### Rationale if Not Selected -->
+```{r}
+#| echo: false
+#| include: true
+#| fig-cap: "Note: Counts are based on referrals, not unique clients"
+rationale_not_selected_tab
+```
+
+:::
+
+::::
+
+<!-- New Row-->
+
+:::: {.columns}
+
+::: {.column width = "50%"}
+```{r}
+#| echo: false
+#| include: true
+#| results: asis
+
+htmltools::HTML(other_outcomes_take2)
+
+```
+:::
+
+::: {.column width="10%"}
+:::
+
+::: {.column width = "40%"}
+### Dismissals from Cohort
+```{r}
+#| echo: false
+#| include: true
+discharge_summary_plot
+```
+:::
+
+::::
+
+:::: {.columns}
+
+::: {.column width = "100%"}
+### Hospital Encounters by Client Status
+```{r}
+#| echo: false
+#| include: true
+encounter_summary_tab
+
+htmltools::HTML(encounter_summary_notes)
+
+```
+:::
+
+::::

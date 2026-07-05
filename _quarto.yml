@@ -1,5 +1,6 @@
+
 project:
-  title: "Complex Care Quarterly Infographic Brief"
+  title: " "
   type: default
   resources:
     - styles/
@@ -18,7 +19,21 @@ format:
     page-layout: full
     smooth-scroll: true
     embed-resources: true
-    html-table-processing: none
+    # html-table-processing: none
+    margin-left: -0.25in
+    margin-right: -0.25in
+    margin-top: -0.25in
+    margin-bottom: -0.25in
+    include-before-body:
+      - text: |
+          <div class="container" style="padding-top: 20px;">
+            <img src="images\BHN Logo Vector.png" style="float: left; margin-right: 15px;" width="200">
+            
+            <div style="clear: both;"></div> <!-- Resets layout for elements below -->
+          </div>
+    # html-table-processing: none
+          
+# editor: source
 
   pdf:
     pdf-engine: pagedjs-cli
@@ -54,3 +69,4 @@ execute:
 extensions:
   - shafayetShafee/bsicons
 #  - filter/your-filter.lua (placeholder in case a filter is added)
+

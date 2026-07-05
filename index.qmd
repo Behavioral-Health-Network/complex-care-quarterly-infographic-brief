@@ -1,9 +1,8 @@
----
-title: "Complex Care Quarterly Infographic Brief"
----
 
+<!-- #Load Data  -->
 ```{r}
 #| label: load-complex-care-data
+#| include: false
 
 # Set default fallback parameters for running code interactively during
 # development since Quarto params are only passed when rendering the document
@@ -13,8 +12,8 @@ if (
   )
 ) {
   params <- list(
-    start_date = "2026-01-01",
-    end_date = "2026-03-31",
+    start_date = "2026-04-01",
+    end_date = "2026-06-30",
     fiscal_system = "state"
   )
 }
@@ -35,7 +34,7 @@ source(
 complex_care_data <- load_complex_care_data()
 
 # Build subsets
-complex_care_subsets <- build_subsets(
+complex_care_subsets <- build_complex_care_subsets(
   full_data = complex_care_data$complex_care_data$complex_care_full_data,
   start_date = params$start_date,
   end_date   = params$end_date,
@@ -44,4 +43,814 @@ complex_care_subsets <- build_subsets(
 
 complex_care_initiated  <- complex_care_subsets$initiated_within_period
 complex_care_dismissed  <- complex_care_subsets$dismissed_within_period
+complex_care_selected_not_enrolled <- complex_care_subsets$active_selected_not_enrolled_within_period
+complex_care_enrolled_not_admitted <- complex_care_subsets$active_enrolled_not_admitted_within_period
+complex_care_admitted_no_tx_team   <- complex_care_subsets$active_admitted_no_tx_team_within_period
+
+complex_care_full_data <- complex_care_data$complex_care_data$complex_care_full_data
+
+mercy_utilization <- complex_care_data$complex_care_data$transform$referral_flow$ext_mercy_utilization
+
 ```
+
+<!-- #Month Table Setup -->
+```{r}
+#| label: monthly-table-setup
+
+#Create fiscal year month order
+fy_months <- c(
+  month.name[7:12],
+  month.name[1:6]
+)
+
+#Set status levels to appear on table
+status_levels <- c(
+  "Referrals",
+  "Selections",
+  "Enrollments",
+  "Admissions"
+)
+
+#Only show the months within parameters
+report_months <- seq(
+  from = floor_date(params$start_date, "month"),
+  to = floor_date(params$end_date, "month"),
+  by = "month"
+) %>%
+  format("%B")
+
+# Create a monthly summary table of referrals, cohort additions,
+# enrollments, and admissions occurring during the reporting period
+achieved_monthly_table_prep <- complex_care_full_data %>% 
+ select(
+  client_number,
+  client_last,
+  client_first,
+  gender_description,
+  race_description,
+  mrn_mercy,
+  tiedenrollment,
+  enrollment_starting_date,
+  enrollment_ending_date,
+  dismissal_reason_description,
+  age_at_enrollment,
+  roster_added_cohort_date,
+  roster_complex_care_referral_source_description,
+  roster_program_assigned,
+  roster_payor_is_optum_uhc,
+  benchmarks_first_post_referral_contact_date,
+  benchmarks_enrollment_date,
+  benchmarks_first_post_enrollment_contact_date,
+  benchmarks_complete_admission_service_date,
+  benchmarks_psych_eval_date,
+  benchmarks_treatment_team_assignment_date,
+  pfp_discharge_pfp_discharge_date
+ ) %>% 
+ mutate(
+    across(
+      c(
+       enrollment_starting_date,
+        roster_added_cohort_date,
+        benchmarks_enrollment_date,
+        benchmarks_complete_admission_service_date
+      ),
+    ymd
+  )
+ ) %>%
+  pivot_longer(
+    cols = c(
+      enrollment_starting_date,
+      roster_added_cohort_date,
+      benchmarks_enrollment_date,
+      benchmarks_complete_admission_service_date
+      ),
+    names_to = "status_raw",
+    values_to = "status_date"
+  ) %>%
+  filter(
+    !is.na(
+      status_date
+      ),
+    between(
+      status_date,
+      params$start_date,
+      params$end_date
+      )
+    ) %>%
+  mutate(
+    Month  = format(
+     status_date,
+     "%B"
+    ),
+    Status = recode(
+      status_raw,
+      enrollment_starting_date = "Referrals",
+      roster_added_cohort_date = "Selections",
+      benchmarks_enrollment_date = "Enrollments",
+      benchmarks_complete_admission_service_date = "Admissions"
+    )
+  ) %>%
+  count(
+    Status,
+    Month,
+    name = "Count"
+    ) %>%
+  complete(
+    Status = status_levels,
+    Month = report_months,
+    fill = list(
+     Count = 0
+    )
+   ) %>%
+  mutate(
+    Month = factor(
+      Month,
+      levels = fy_months
+    )
+  ) %>%
+  arrange(
+    Status,
+    Month
+  ) %>%
+  pivot_wider(
+    names_from = Month,
+    values_from = Count
+  ) %>%
+  arrange(
+    factor(
+      Status,
+      levels = status_levels
+    )
+  ) %>%
+  mutate(
+    Total = rowSums(
+      across(
+        all_of(report_months)
+      ),
+      na.rm = TRUE
+    )
+  )
+
+```
+<!--#Month Table-->
+```{r}
+#| label: monthly-table
+
+monthly_table <- achieved_monthly_table_prep  %>%
+  kable(
+    align = c("r", "c", "c", "c", "c"),
+    escape = FALSE
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 16
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE,
+    background = "#B6D1E3"
+  ) %>%
+  column_spec(
+    1,
+    bold = TRUE,
+    width = "5em"
+    ) %>% 
+    column_spec(
+    5,
+    bold = TRUE
+  ) %>% 
+  row_spec(
+    0:4,
+    extra_css = "padding-left: 15px;"
+    ) 
+# %>% 
+#     add_header_above(
+#       c(
+#         "New Clients by Program Segment" = 5
+#         )
+#       )
+
+```
+
+
+<!-- Progress Toward Annual Admissions Goal  -->
+```{r}
+#| label: admissions-gauge-setup
+
+ytd_admissions <- complex_care_full_data %>% 
+ filter(
+  benchmarks_complete_admission_service_date >= "2025-07-01",
+  benchmarks_complete_admission_service_date <= "2026-06-30"
+ ) %>% 
+ summarise(
+  total_rows = n()
+ ) %>% 
+  pull(total_rows)
+
+#Hard code annual goal
+goal_admissions <- 35
+
+pct <- ytd_admissions / goal_admissions
+
+```
+```{r}
+#| label: admissions-gauge
+
+ytd_goal_plot <- ggplot() +
+  geom_rect(
+    aes(
+      xmin = 0,
+      xmax = pct,
+      ymin = 0,
+      ymax = 1
+    ),
+    fill = "#0072B2"
+  ) +
+  geom_rect(
+    aes(
+      xmin = pct,
+      xmax = 1,
+      ymin = 0,
+      ymax = 1
+    ),
+    fill = "grey90"
+  ) +
+  annotate(
+    "text",
+    x = 0.55,
+    y = 0.5,
+    label = paste0(
+      scales::percent(pct, accuracy = 1)
+    ),
+    size = 7
+  ) +
+  # labs(
+  #   title = "Progress Toward FY26 Admission Goal",
+  # ) +
+  xlim(0, 1) +
+  theme_void()+
+  theme(
+    plot.title = element_text(
+      size = 16,
+      face = "bold",
+      hjust = 0.5
+    )
+  )
+
+```
+
+
+<!-- Referral Sources & Cohort Selection -->
+
+<!-- Referral Source -->
+```{r}
+referral_source_table_prep <- complex_care_initiated %>% 
+  select(
+    client_number,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    roster_complex_care_referral_source_description,
+    ccnotes_decision,
+    ccnotes_complex_care_clinical_committee_rationale_description,
+    ccnotes_complex_care_reasons_ineligible_description,
+    ccnotes_complex_care_other_outcomes_description
+  ) %>% 
+  mutate(
+    added_to_cohort = if_else(
+      !is.na(roster_added_cohort_date),
+      "Added to Cohort",
+      "Not Added to Cohort"
+    )
+  ) %>%
+  distinct(
+    client_number,
+    roster_complex_care_referral_source_description,
+    added_to_cohort
+    ) %>%
+  count(
+    roster_complex_care_referral_source_description,
+    added_to_cohort,
+    name = "n_clients"
+  ) %>%
+  pivot_wider(
+    names_from = added_to_cohort,
+    values_from = n_clients,
+    values_fill = 0
+  ) %>%
+  mutate(
+    Total = rowSums(across(where(is.numeric)))
+  ) %>%
+  arrange(desc(Total))
+```
+```{r}
+ref_source_table <- referral_source_table_prep %>%
+  rename(
+    `Referral Source` = roster_complex_care_referral_source_description
+  ) %>%
+  kable(
+    align = c("l", "c", "c", "c"),
+    # caption = "<div style='
+    #     text-align:left;
+    #     font-size:16px;
+    #     font-weight:550;
+    #     color: #1F3A5F;
+    #     margin-bottom:5px;
+    #   '>Referral Source by Cohort Status</div>",
+    escape = FALSE,
+    
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = FALSE,
+    position = "left"
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE,
+    background = "#BCDFF1"
+  ) %>%
+  column_spec(
+    1,
+    width = "12em"
+   ) %>%
+  column_spec(
+    2:3,
+    width = "10em",
+  ) %>%
+  column_spec(
+    4,
+    width = "10em",
+    bold = TRUE
+  ) %>% 
+  add_header_above(
+    c(" " = 1, "Client Counts" = 3)
+  )
+
+ref_source_table
+```
+
+
+<!-- Rationale, Not Selected -->
+```{r}
+rationale_not_selected_tab_prep <- complex_care_initiated %>% 
+  select(
+    client_number,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    roster_complex_care_referral_source_description,
+    ccnotes_decision,
+    ccnotes_complex_care_clinical_committee_rationale_description,
+    ccnotes_complex_care_reasons_ineligible_description,
+    ccnotes_complex_care_other_outcomes_description
+  ) %>% 
+  filter(
+    ccnotes_decision != "Select To BEACN Cohort"
+  ) %>% 
+  count(
+    ccnotes_complex_care_clinical_committee_rationale_description,
+    name = "n"
+  ) %>% 
+  arrange(
+    desc(
+      n
+    )
+  )
+```
+```{r}
+rationale_not_selected_tab <- rationale_not_selected_tab_prep %>% 
+  adorn_totals(
+    "row"
+  ) %>% 
+  kable(
+    col.names = c("Rationale, Not Selected", "Count"),
+    align = c("l", "c")
+  ) %>%  
+  kable_styling(
+    bootstrap_options = c("striped", "condensed"),
+    full_width = FALSE
+  ) %>% 
+  row_spec(
+    0,
+    bold = TRUE,
+    background = "#BCDFF1"
+    ) %>%
+  row_spec(
+    nrow(rationale_not_selected_tab_prep) + 1,
+    bold = TRUE
+  )
+
+rationale_not_selected_tab
+```
+
+<!-- Other Outcomes -->
+```{r}
+other_outcomes_tab_prep <- complex_care_initiated %>% 
+  select(
+    client_number,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    roster_complex_care_referral_source_description,
+    ccnotes_decision,
+    ccnotes_complex_care_clinical_committee_rationale_description,
+    ccnotes_complex_care_reasons_ineligible_description,
+    ccnotes_complex_care_other_outcomes_description
+  ) %>%
+  filter(
+    ccnotes_decision != "Select To BEACN Cohort",
+    !is.na(ccnotes_complex_care_other_outcomes_description)
+  ) %>% 
+  count(
+    ccnotes_complex_care_other_outcomes_description,
+    name = "n"
+  )%>% 
+  arrange(
+    desc(
+      n
+    )
+  )
+```
+
+```{r}
+other_outcomes_tab <- other_outcomes_tab_prep %>% 
+  adorn_totals(
+    "row"
+  )%>% 
+  kable(
+    col.names = c("Other Outcomes", "Client Count"),
+    align = c("l", "c")
+  ) %>%  
+  kable_styling(
+    bootstrap_options = c("striped", "condensed"),
+    full_width = FALSE
+  ) %>% 
+  row_spec(
+    0,
+    bold = TRUE,
+    background = "#B6D1E3"
+  ) %>%
+  row_spec(
+    5,
+    bold = TRUE
+  ) 
+
+
+
+outcome_lines <- other_outcomes_tab_prep %>%
+  mutate(
+    outcome_line = paste0(
+      "<li><strong>", n, "</strong> ",
+      ccnotes_complex_care_other_outcomes_description,
+      "</li>"
+    )
+  ) %>%
+  summarise(
+    lines = paste(outcome_line, collapse = "")
+  ) %>%
+  pull(lines)
+
+other_outcomes_take2 <- paste0(
+  '
+  <div style="display:flex; align-items:flex-start; gap:25px; margin-top:10px;">
+    <div style="
+      background:#8ECBE8;
+      padding:10px 30px 10px 18px;
+      font-size:1.2em;
+      font-weight:bold;
+      clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
+      white-space:nowrap;
+    ">
+      Other Outcomes
+    </div>
+
+    <div style="font-size:1.1em;">
+      <ul style="margin:0; padding-left:1.2em;">
+        ',
+        outcome_lines,
+      '
+      </ul>
+    </div>
+  </div>
+  '
+)
+
+
+```
+
+<!-- discharges -->
+```{r}
+discharged_pfp <- complex_care_full_data %>% 
+  filter(
+    pfp_discharge_pfp_discharge_date >= params$start_date,
+    pfp_discharge_pfp_discharge_date <= params$end_date
+    ) %>% 
+  select(
+    client_number,
+    client_last,
+    client_first,
+    mrn_mercy,
+    tiedenrollment,
+    enrollment_starting_date,
+    enrollment_ending_date,
+    dismissal_reason_description,
+    roster_added_cohort_date,
+    roster_program_assigned,
+    roster_payor_is_optum_uhc,
+    benchmarks_enrollment_date,
+    benchmarks_complete_admission_service_date,
+    benchmarks_treatment_team_assignment_date,
+    pfp_discharge_pfp_discharge_date
+  )
+
+discharged_pfp_plot_prep <- discharged_pfp %>% 
+  count(
+    dismissal_reason_description,
+    name = "n"
+    ) %>% 
+    arrange(
+      desc(
+        n
+      )
+    )%>%
+  mutate(
+    dismissal_reason_description =
+      forcats::fct_reorder(
+        dismissal_reason_description,
+        n
+        )
+      )
+
+```
+```{r}
+discharge_summary_plot <- 
+   ggplot(
+     discharged_pfp_plot_prep,
+     aes(
+    x = n,
+    y = dismissal_reason_description
+  ) 
+  )+ 
+    geom_col(
+    fill = "#4DA3D9",
+    width = 0.85
+  ) +
+  geom_text(
+    aes(label = n),
+    color = "white",
+    fontface = "bold",
+    size = 4,
+    hjust = 1.2   # pushes text inside bar
+  ) +
+  labs(
+    title = "Dismissals from Cohort",
+    x = NULL,
+    y = NULL
+  ) +
+   scale_y_discrete(
+     expand = expansion(add = 0)
+     )+
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold"),
+    axis.text.y = element_text(size = 11, face = "bold"),
+    panel.grid = element_blank(),
+    axis.text.x = element_blank()
+  )
+```
+
+<!-- Alerting counts -->
+
+<!-- alerting heatmap -->
+
+
+<!-- Hospital encounters by client status -->
+```{r}
+quarterly_mercy_utilization <- mercy_utilization %>% 
+  filter(
+    adm_date_time >= params$start_date,
+    adm_date_time <= params$end_date
+  )
+
+cohort_v_enrolled_utiliz_tab_prep <-complex_care_full_data %>% 
+  filter(
+    !is.na(roster_added_cohort_date),
+    enrollment_starting_date <= params$end_date,
+    is.na(enrollment_ending_date) | enrollment_ending_date >=params$start_date
+  ) %>% 
+  left_join(
+    quarterly_mercy_utilization,
+    by = c("mrn_mercy" = "pat_mrn_id")
+  )%>% 
+  mutate(
+ group = case_when(
+    (is.na(benchmarks_enrollment_date) |
+      benchmarks_enrollment_date > params$end_date) ~ "In Outreach",
+      benchmarks_enrollment_date <= params$end_date ~ "Enrolled"
+  )
+ )%>% 
+  mutate(
+    group = factor(
+      group,
+      levels = c(
+        "In Outreach",
+        "Enrolled")
+    )
+  ) %>%
+  group_by(
+    group
+  ) %>% 
+  summarise(
+    n_clients_tot = n_distinct(client_number),
+    n_clients_w_util = n_distinct(
+      client_number[!is.na(patient_class)]),
+    er_count  = sum(patient_class == "Emergency", na.rm = TRUE),
+    ip_count  = sum(patient_class == "Inpatient", na.rm = TRUE)
+  ) %>%
+  mutate(
+    total = er_count + ip_count
+  ) %>% 
+#   mutate(
+#   er_rate = round(er_count / n_clients_w_util, 2),
+#   ip_rate = round(ip_count / n_clients_w_util, 2)
+# ) %>% 
+  mutate(
+    percent_util = scales::percent(
+      n_clients_w_util/n_clients_tot, 
+      accuracy = 1)
+  ) %>% 
+  relocate(
+    percent_util,
+    .after = n_clients_w_util
+  )
+```
+```{r}
+encounter_summary_tab <- cohort_v_enrolled_utiliz_tab_prep %>%
+  kable(
+    col.names = c(
+      "Status", 
+      "Total",
+      "With Utilization",
+      "%",
+      "ED", 
+      "IP",
+      "Total"
+      ),
+    align = c("l", "c", "c","c", "c", "c", "c"),
+    booktabs = TRUE,
+  escape = FALSE
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("hover", "condensed"),
+    full_width = FALSE,
+    position = "left"
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE,
+    background = "#BFD8F4", 
+    color = "#0B3C5D"
+    ) %>%
+  column_spec(
+    1,
+    width = "9em",
+    bold = TRUE,
+    color = "#0B3C5D"
+    ) %>%
+  column_spec(
+    3,
+    width = "9em"
+  ) %>% 
+  column_spec(
+    2:4,
+    background = "#E6F0FA"
+  ) %>% 
+  column_spec(
+    5:7,
+    width = "6em",
+    background = "#D4E4F7"
+  ) %>% 
+  column_spec(
+    5,
+    border_left = TRUE
+  ) %>% 
+  column_spec(
+    7,
+    bold = TRUE
+    )
+
+encounter_summary_notes <-"<div style='font-size:12px; color:#4A4A4A; margin-top:6px; width:100%; max-width:760px;'>
+ <ul style='margin-top:4px; margin-bottom:0; padding-left:18px;'>
+    <li><strong>%</strong> reflects clients with ≥1 hospital encounter divided by total clients in each status group.</li>
+    <li><strong>ED and IP Rates</strong> reflect total encounters divided by clients with utilization in each group.</li>
+  </ul>
+</div>"
+
+
+
+```
+
+<!-- Hospital encounters for enrolled clients -->
+```{r}
+enrolled_utilization_viz_prep <- complex_care_full_data %>% 
+  filter(
+    is.na(enrollment_ending_date) | enrollment_ending_date >=params$start_date,
+    !is.na(benchmarks_enrollment_date),
+    benchmarks_enrollment_date <= params$end_date 
+  ) %>% 
+  left_join(
+    quarterly_mercy_utilization,
+    by = c("mrn_mercy" = "pat_mrn_id")
+  )
+
+#Count admissions based on class: Emergency or Inpatient.
+adm_counts_class <- enrolled_utilization_viz_prep %>%
+  filter(
+    !is.na(adm_date_time)
+    ) %>%
+  count(
+    client_number,
+    patient_class,
+    name = "n_admissions"
+    ) %>%
+  group_by(
+    client_number
+    ) %>%
+  mutate(
+    total_admissions = sum(n_admissions)
+    ) %>%  
+  ungroup()
+ 
+```
+
+```{r}
+#Calculate how many clients had admissions during q2. Use for N on visual.
+n_clients_chart <- adm_counts_class %>% 
+  distinct(
+    enroll_client_num
+  ) %>% 
+  nrow()
+
+#Count of Admissions by Client, use in labels
+adm_counts_by_client <- adm_counts_class %>%
+  distinct(
+    enroll_client_num,
+    total_admissions
+    )
+
+#Create Plot
+adm_counts_by_enrolled_client <- ggplot(
+  adm_counts_class,
+  aes(
+    x = fct_reorder(
+      enroll_client_num,
+      n_admissions,
+      .fun = sum
+      ),
+    y = n_admissions,
+    fill = patient_class
+  )
+) +
+  geom_col(
+    width = 0.7
+    ) +
+  coord_flip() +
+  geom_text(
+    data = adm_counts_by_client,
+    aes(
+      x = enroll_client_num,
+      y = .data$total_admissions,
+      label = .data$total_admissions
+    ),
+    hjust = -0.2,
+    size = 3,
+    inherit.aes = FALSE
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Emergency" = "#D55E00",
+      "Inpatient" = "#0072B2"    
+    )
+  ) +
+  labs(
+    title = "Count of Hospital Encounters for Enrolled Clients",
+    subtitle = paste0("N = ", n_clients_chart),
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.grid = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_blank(),
+    legend.position = "bottom"
+  )
+
+```
+
