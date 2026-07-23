@@ -19,7 +19,7 @@ format:
     page-layout: full
     smooth-scroll: true
     embed-resources: true
-    # html-table-processing: none
+    html-table-processing: none
     margin-left: -0.25in
     margin-right: -0.25in
     margin-top: -0.25in
