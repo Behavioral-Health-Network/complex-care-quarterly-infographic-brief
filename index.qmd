@@ -583,6 +583,7 @@ discharged_pfp_plot_prep <- discharged_pfp %>%
 
 ```
 ```{r}
+#Plot
 discharge_summary_plot <- 
    ggplot(
      discharged_pfp_plot_prep,
@@ -619,6 +620,11 @@ discharge_summary_plot <-
     panel.grid = element_blank(),
     axis.text.x = element_blank()
   )
+
+
+#table
+
+
 ```
 
 <!-- Alerting counts -->
@@ -630,6 +636,7 @@ discharge_summary_plot <-
 ```{r}
 quarterly_mercy_utilization <- mercy_utilization %>% 
   filter(
+    !is.na(adm_date_time),
     adm_date_time >= params$start_date,
     adm_date_time <= params$end_date
   )
@@ -637,7 +644,7 @@ quarterly_mercy_utilization <- mercy_utilization %>%
 cohort_v_enrolled_utiliz_tab_prep <-complex_care_full_data %>% 
   filter(
     !is.na(roster_added_cohort_date),
-    enrollment_starting_date <= params$end_date,
+    roster_added_cohort_date <= params$end_date,
     is.na(enrollment_ending_date) | enrollment_ending_date >=params$start_date
   ) %>% 
   left_join(
@@ -648,7 +655,7 @@ cohort_v_enrolled_utiliz_tab_prep <-complex_care_full_data %>%
  group = case_when(
     (is.na(benchmarks_enrollment_date) |
       benchmarks_enrollment_date > params$end_date) ~ "In Outreach",
-      benchmarks_enrollment_date <= params$end_date ~ "Enrolled"
+      (!is.na(benchmarks_enrollment_date) & benchmarks_enrollment_date <= params$end_date) ~ "Enrolled"
   )
  )%>% 
   mutate(
@@ -661,7 +668,7 @@ cohort_v_enrolled_utiliz_tab_prep <-complex_care_full_data %>%
   ) %>%
   group_by(
     group
-  ) %>% 
+  )%>% 
   summarise(
     n_clients_tot = n_distinct(client_number),
     n_clients_w_util = n_distinct(
@@ -672,10 +679,6 @@ cohort_v_enrolled_utiliz_tab_prep <-complex_care_full_data %>%
   mutate(
     total = er_count + ip_count
   ) %>% 
-#   mutate(
-#   er_rate = round(er_count / n_clients_w_util, 2),
-#   ip_rate = round(ip_count / n_clients_w_util, 2)
-# ) %>% 
   mutate(
     percent_util = scales::percent(
       n_clients_w_util/n_clients_tot, 
@@ -748,15 +751,17 @@ encounter_summary_notes <-"<div style='font-size:12px; color:#4A4A4A; margin-top
   </ul>
 </div>"
 
+encounter_summary_tab
 
 
 ```
 
 <!-- Hospital encounters for enrolled clients -->
+<!-- in progress -->
 ```{r}
 enrolled_utilization_viz_prep <- complex_care_full_data %>% 
   filter(
-    is.na(enrollment_ending_date) | enrollment_ending_date >=params$start_date,
+    (is.na(enrollment_ending_date) | enrollment_ending_date >=params$start_date),
     !is.na(benchmarks_enrollment_date),
     benchmarks_enrollment_date <= params$end_date 
   ) %>% 
@@ -768,7 +773,8 @@ enrolled_utilization_viz_prep <- complex_care_full_data %>%
 #Count admissions based on class: Emergency or Inpatient.
 adm_counts_class <- enrolled_utilization_viz_prep %>%
   filter(
-    !is.na(adm_date_time)
+    !is.na(adm_date_time),
+    patient_class %in% c("Emergency", "Inpatient")
     ) %>%
   count(
     client_number,
@@ -787,25 +793,25 @@ adm_counts_class <- enrolled_utilization_viz_prep %>%
 
 ```{r}
 #Calculate how many clients had admissions during q2. Use for N on visual.
-n_clients_chart <- adm_counts_class %>% 
+n_clients_chart <- adm_counts_class %>%
   distinct(
-    enroll_client_num
-  ) %>% 
+    client_number
+  ) %>%
   nrow()
-
-#Count of Admissions by Client, use in labels
+# 
+# #Count of Admissions by Client, use in labels
 adm_counts_by_client <- adm_counts_class %>%
   distinct(
-    enroll_client_num,
+    client_number,
     total_admissions
     )
-
-#Create Plot
+# 
+# #Create Plot
 adm_counts_by_enrolled_client <- ggplot(
   adm_counts_class,
   aes(
     x = fct_reorder(
-      enroll_client_num,
+      client_number,
       n_admissions,
       .fun = sum
       ),
@@ -820,7 +826,7 @@ adm_counts_by_enrolled_client <- ggplot(
   geom_text(
     data = adm_counts_by_client,
     aes(
-      x = enroll_client_num,
+      x = client_number,
       y = .data$total_admissions,
       label = .data$total_admissions
     ),
@@ -831,7 +837,7 @@ adm_counts_by_enrolled_client <- ggplot(
   scale_fill_manual(
     values = c(
       "Emergency" = "#D55E00",
-      "Inpatient" = "#0072B2"    
+      "Inpatient" = "#0072B2"
     )
   ) +
   labs(
@@ -851,6 +857,40 @@ adm_counts_by_enrolled_client <- ggplot(
     axis.text.y = element_blank(),
     legend.position = "bottom"
   )
-
+adm_counts_by_enrolled_client
 ```
 
+
+<!-- Quick test-->
+
+```{r}
+optum_clients <- complex_care_full_data %>% 
+  filter(
+    roster_payor_is_optum_uhc == "Yes"
+  ) %>% 
+    select(
+      client_number,
+      client_last,
+      client_first,
+      gender_description,
+      race_description,
+      mrn_mercy,
+      tiedenrollment,
+      enrollment_starting_date,
+      enrollment_ending_date,
+      dismissal_reason_description,
+      age_at_enrollment,
+      roster_added_cohort_date,
+      roster_complex_care_referral_source_description,
+      roster_program_assigned,
+      roster_payor_is_optum_uhc,
+      benchmarks_first_post_referral_contact_date,
+      benchmarks_enrollment_date,
+      benchmarks_first_post_enrollment_contact_date,
+      benchmarks_complete_admission_service_date,
+      benchmarks_psych_eval_date,
+      benchmarks_treatment_team_assignment_date,
+      pfp_discharge_pfp_discharge_date
+      )
+
+```
