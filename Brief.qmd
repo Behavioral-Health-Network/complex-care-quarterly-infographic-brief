@@ -27,7 +27,7 @@ monthly_table
 #| include: true
 #| fig-width: 5
 #| fig-height: 0.5
-#| fig-cap: "As of March 31, 2026, 28 of 35 FY26 admissions (80%) had been achieved."
+#| fig-cap: "As of June 30th 2026, 29 of 35 admissions had been achieved."
 
 print(ytd_goal_plot)
 ```
