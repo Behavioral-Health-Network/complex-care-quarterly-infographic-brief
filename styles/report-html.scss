@@ -79,3 +79,135 @@
   width: 40%;        /* adjust to taste: 25%, 33%, 50% */
   border-bottom: 2px solid #e0e4ea;
 }
+
+.figure-caption {
+  font-size: 10px;
+  color: #5A5A5A;
+  line-height: 1.3;
+  margin-top: 4px;
+}
+
+/* ---------------------------------------------------------
+   Heading spacing
+   --------------------------------------------------------- */
+
+h2 {
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+h2 + h3 {
+  margin-top: 0.25rem;
+}
+
+.mission-box {
+  background: #f3f7fa;
+  border-left: 4px solid #0072B2;
+  padding: 0.8rem 1rem;
+  margin: 1rem 0 1.25rem 0;
+}
+
+.mission-box h3 {
+  margin-top: 0;
+  color: #003366;
+}
+
+.key-finding {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+
+  background-color: #f2f7fb;
+  border-left: 5px solid #0072B2;
+  border-radius: 4px;
+
+  padding: 0.85rem 1.1rem;
+  margin: 1.25rem 0 1.5rem 0;
+}
+
+.key-finding::before {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 2.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+
+  background-color: #0072B2;
+  color: white;
+  border-radius: 50%;
+
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 1.1rem;
+}
+
+.key-finding.compact {
+  padding: 0.6rem 0.8rem;
+  margin: 0.75rem 0 0 0;
+  gap: 0.65rem;
+}
+
+.key-finding.compact::before {
+  flex: 0 0 2rem;
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.85rem;
+}
+
+/* Handshake */
+.icon-handshake::before {
+  content: "\f2b5";
+}
+
+/* Chart line */
+.icon-chart-line::before {
+  content: "\f201";
+}
+
+/* Comments */
+.icon-comments::before {
+  content: "\f086";
+  
+/* Housing */
+.icon-house::before {
+  content: "\f015";
+}
+}
+
+.other-outcomes {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.other-outcomes li {
+  margin-bottom: 2px;
+}
+
+
+.table-condensed > tbody > tr > td,
+.table-condensed > tbody > tr > th,
+.table-condensed > thead > tr > td,
+.table-condensed > thead > tr > th {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+/* Figure captions */
+.figure-caption,
+figcaption {
+  font-size: 10px !important;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.table-note {
+  font-size: 10px;
+  line-height: 1.2;
+  color: #555;
+  margin-top: 3px;
+  margin-bottom: 6px;
+}

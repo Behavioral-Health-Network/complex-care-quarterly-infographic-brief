@@ -12,8 +12,8 @@ if (
   )
 ) {
   params <- list(
-    start_date = "2026-04-01",
-    end_date = "2026-06-30",
+    start_date = "2026-07-01",
+    end_date = "2026-09-30",
     fiscal_system = "state"
   )
 }
@@ -50,6 +50,242 @@ complex_care_admitted_no_tx_team   <- complex_care_subsets$active_admitted_no_tx
 complex_care_full_data <- complex_care_data$complex_care_data$complex_care_full_data
 
 mercy_utilization <- complex_care_data$complex_care_data$transform$referral_flow$ext_mercy_utilization
+
+alerting_data <- complex_care_data$complex_care_data$transform$referral_flow$ext_atd_notifications
+
+complex_care_outreach_notes <- complex_care_data$complex_care_data$raw$complex_care_outreach_notes
+
+```
+<!-- #Referrals and Selections -->
+```{r}
+#| label: funnel set up
+
+#Count number of referrals and selections 
+quarterly_counts <- complex_care_full_data %>%
+  summarise(
+    Referrals = sum(
+      enrollment_starting_date >= params$start_date &
+      enrollment_starting_date <= params$end_date,
+      na.rm = TRUE
+    ),
+    Selections = sum(
+      roster_added_cohort_date >= params$start_date &
+      roster_added_cohort_date <= params$end_date,
+      na.rm = TRUE
+    )
+  ) %>%
+  tidyr::pivot_longer(
+    cols = everything(),
+    names_to = "stage",
+    values_to = "count"
+  ) %>%
+  mutate(
+    stage = factor(
+      stage,
+      levels = c(
+        "Referrals",
+        "Selections"
+        # "Enrollments",
+        # "Admissions"
+      )
+    ),
+    stage_num = as.numeric(stage),
+    xmin = -count / 2,
+    xmax = count / 2,
+    ymin = stage_num - 0.42,
+    ymax = stage_num + 0.42
+  )
+
+#Create plot
+quarterly_counts_plot <- ggplot(
+  quarterly_counts
+  ) +
+  geom_rect(
+    aes(
+      xmin = 0,
+      xmax = count,
+      ymin = ymin,
+      ymax = ymax
+      ),
+    fill = "#0072B2"
+  ) +
+  geom_text(
+  aes(
+    x = count,
+    y = stage_num,
+    label = count
+    ),
+  color = "black",
+  fontface = "bold",
+  size = 5,
+  hjust = -0.3
+) +
+  scale_y_reverse(
+    breaks = quarterly_counts$stage_num,
+    labels = quarterly_counts$stage
+  ) +
+  coord_cartesian(
+    xlim = c(0, max(quarterly_counts$count)*1.2)
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(
+      color = "black",
+      size = 14,
+      face = "bold",
+      margin = margin(r = -4)
+      ),
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    axis.text = element_blank()
+  )
+
+quarterly_counts_plot
+
+```
+<!-- #Enrolled -->
+```{r}
+#| label: enrolled-admitted-counts
+
+#Count total enrollments within period
+enrolled <- complex_care_full_data %>% 
+  filter(
+    benchmarks_enrollment_date >= params$start_date,
+    benchmarks_enrollment_date <= params$end_date
+ ) %>% 
+ summarise(
+  total_rows = n()
+ ) %>% 
+  pull(total_rows)
+
+#Count total admissions within period
+admitted <-complex_care_full_data %>% 
+  filter(
+    benchmarks_complete_admission_service_date >= params$start_date,
+    benchmarks_complete_admission_service_date <= params$end_date
+ ) %>% 
+ summarise(
+  total_rows = n()
+ ) %>% 
+  pull(total_rows)
+
+
+#Create card visuals with icons, combined into one visual
+count_enrolled_admitted_html <- htmltools::HTML(
+  glue::glue("
+    <div style='
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      width: 100%;
+      margin: 12px 0;
+      text-align: center;
+    '>
+
+      <div>
+        <i class='fa-solid fa-handshake'
+           style='font-size: 40px; color: #222;'></i>
+        <div style='
+          margin-top: 6px;
+          font-size: 26px;
+          font-weight: bold;
+          color: #39358C;
+        '>
+          {enrolled}
+        </div>
+        <div style='font-size: 14px; font-weight: bold; line-height: 1.3;'>
+          Enrolled into<br>BEACN
+        </div>
+      </div>
+
+      <div>
+        <i class='fa-solid fa-hospital'
+           style='font-size: 40px; color: #222;'></i>
+        <div style='
+          margin-top: 6px;
+          font-size: 26px;
+          font-weight: bold;
+          color: #39358C;
+        '>
+          {admitted}
+        </div>
+        <div style='font-size: 14px; font-weight: bold; line-height: 1.3;'>
+          Admitted to<br>PfP
+        </div>
+      </div>
+
+    </div>
+  ")
+)
+
+#Enrollment card with icon
+count_enrolled_html <- htmltools::HTML(
+  glue::glue("
+    <div style='
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      width: 100%;
+      margin: 12px 0;
+      text-align: center;
+    '>
+
+      <div>
+        <i class='fa-solid fa-handshake'
+           style='font-size: 40px; color: #222;'></i>
+        <div style='
+          margin-top: 6px;
+          font-size: 26px;
+          font-weight: bold;
+          color: #39358C;
+        '>
+          {enrolled}
+        </div>
+        <div style='font-size: 14px; font-weight: bold; line-height: 1.3;'>
+          Enrolled into<br>BEACN
+        </div>
+      </div>
+
+     
+    </div>
+  ")
+)
+
+#Admitted card with icon
+count_admitted_html <- htmltools::HTML(
+  glue::glue("
+    <div style='
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      width: 100%;
+      margin: 12px 0;
+      text-align: center;
+    '>
+
+      <div>
+        <i class='fa-solid fa-hospital'
+           style='font-size: 40px; color: #222;'></i>
+        <div style='
+          margin-top: 6px;
+          font-size: 26px;
+          font-weight: bold;
+          color: #39358C;
+        '>
+          {admitted}
+        </div>
+        <div style='font-size: 14px; font-weight: bold; line-height: 1.3;'>
+          Admitted to<br>PfP
+        </div>
+      </div>
+
+    </div>
+  ")
+)
+
+
+
+
 
 ```
 
@@ -117,6 +353,8 @@ achieved_monthly_table_prep <- complex_care_full_data %>%
     ymd
   )
  ) %>%
+#Use pivot_longer to create one row per milestone date for each client, filtering
+#out missing dates and keeping dates only within the reporting period
   pivot_longer(
     cols = c(
       enrollment_starting_date,
@@ -150,6 +388,8 @@ achieved_monthly_table_prep <- complex_care_full_data %>%
       benchmarks_complete_admission_service_date = "Admissions"
     )
   ) %>%
+#Count how many milestones occurred within each month, use complete include every combination
+# filling missing counts with zero.
   count(
     Status,
     Month,
@@ -162,6 +402,8 @@ achieved_monthly_table_prep <- complex_care_full_data %>%
      Count = 0
     )
    ) %>%
+#Convert month to a factor so it presents in order. Pivot_wider so that each status
+#has one row and each month has it's own column.
   mutate(
     Month = factor(
       Month,
@@ -232,6 +474,163 @@ monthly_table <- achieved_monthly_table_prep  %>%
 #         )
 #       )
 
+monthly_table
+
+```
+
+
+
+```{r cohort-segments-by-month}
+#Sets the last day of the month, so that active segments can be counted per month.
+#If they were added to the cohort AND enrolled in the same month, they will show
+#as enrolled at the month end
+month_ends <- tibble(
+  month_end = seq(
+    floor_date(params$start_date, "month"),
+    floor_date(params$end_date, "month"),
+    by = "1 month"
+  ) %>% ceiling_date("month") - days(1)
+)
+
+
+# Use crossing() to pair each distinct source row with every month_end,
+# creating one row per client per month_end date.
+cohort_segments_tab_prep <- complex_care_full_data %>%
+  mutate(
+    across(
+      c(
+        enrollment_starting_date,
+        roster_added_cohort_date,
+        benchmarks_enrollment_date,
+        benchmarks_complete_admission_service_date,
+        benchmarks_treatment_team_assignment_date,
+        enrollment_ending_date
+      ),
+      ymd
+    )
+  ) %>%
+   tidyr::crossing(
+     month_ends
+     ) %>%
+  filter(
+    is.na(enrollment_ending_date) |
+      enrollment_ending_date > month_end
+  ) %>%
+  filter(
+    !is.na(roster_added_cohort_date),
+    roster_added_cohort_date <= params$end_date
+  ) %>%
+  filter(
+    roster_added_cohort_date <= month_end
+  ) %>%
+  mutate(
+    month = month(month_end, label = TRUE, abbr = FALSE),
+    cohort_segment = case_when(
+      !is.na(benchmarks_treatment_team_assignment_date) &
+        benchmarks_treatment_team_assignment_date <= month_end ~ "Assigned to Tx team, still in cohort",
+      !is.na(benchmarks_complete_admission_service_date) &
+        benchmarks_complete_admission_service_date <= month_end ~ "Admitted, not assigned to team",
+      !is.na(benchmarks_enrollment_date) &
+        benchmarks_enrollment_date <= month_end ~ "Enrolled, not admitted",
+      !is.na(roster_added_cohort_date) &
+        roster_added_cohort_date <= month_end ~ "Added to cohort, not enrolled",
+      TRUE ~ NA_character_
+    ),
+    cohort_segment = factor(
+    cohort_segment,
+    levels = c(
+      "Added to cohort, not enrolled",
+      "Enrolled, not admitted",
+      "Admitted, not assigned to team",
+      "Assigned to Tx team, still in cohort"
+    )
+  )
+  ) %>% 
+  select(
+    client_number,
+    client_first,
+    client_last,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    benchmarks_enrollment_date,
+    benchmarks_complete_admission_service_date,
+    benchmarks_treatment_team_assignment_date,
+    enrollment_ending_date,
+    cohort_segment,
+    month
+  )
+
+#Count cohort_segments by month, pivot_wider to create columns for each month
+pipeline_snapshot_table <- cohort_segments_tab_prep %>%
+  count(
+    cohort_segment,
+    month
+    ) %>%
+  pivot_wider(
+    names_from = month,
+    values_from = n,
+    values_fill = 0
+  ) %>%
+  adorn_totals("row")
+
+
+status_month_table_fmt <- pipeline_snapshot_table %>%
+  mutate(
+    across(
+      -cohort_segment,
+      ~ if_else(
+        cohort_segment == "Total",
+        as.character(.x),
+        paste0(
+          .x,
+         "&nbsp;&nbsp;",
+          "<span style='color:#5A5A5A; font-size:90%;'>(",
+          scales::percent(
+            .x / .x[cohort_segment == "Total"],
+            accuracy = 0.1
+          ),
+         ")</span>"
+        )
+      )
+    )
+  ) %>% 
+  rename(
+    `Cohort Segment` = cohort_segment
+  )
+
+```
+```{r cohort-segments-tab}
+
+segment_table_html <- status_month_table_fmt %>% 
+  kable(
+    format = "html",
+    align = c("r", "c", "c", "c"),
+    escape = FALSE
+  ) %>% 
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 11
+  ) %>% 
+  row_spec(
+    0,
+    bold = TRUE,
+    background = "#BCDFF1"
+  ) %>% 
+  column_spec(
+    1,
+    bold = TRUE,
+    width = "14em"
+  ) %>% 
+  column_spec(
+    2:4,
+    width = "8em"
+  ) %>%
+  as.character() %>%
+  htmltools::HTML()
+
+
 ```
 
 
@@ -241,8 +640,8 @@ monthly_table <- achieved_monthly_table_prep  %>%
 
 ytd_admissions <- complex_care_full_data %>% 
  filter(
-  benchmarks_complete_admission_service_date >= "2025-07-01",
-  benchmarks_complete_admission_service_date <= "2026-06-30"
+  benchmarks_complete_admission_service_date >= "2026-07-01",
+  benchmarks_complete_admission_service_date <= "2026-09-30"
  ) %>% 
  summarise(
   total_rows = n()
@@ -293,11 +692,13 @@ ytd_goal_plot <- ggplot() +
   theme_void()+
   theme(
     plot.title = element_text(
-      size = 16,
+      size = 12,
       face = "bold",
       hjust = 0.5
     )
   )
+
+ytd_goal_plot
 
 ```
 
@@ -306,6 +707,8 @@ ytd_goal_plot <- ggplot() +
 
 <!-- Referral Source -->
 ```{r}
+#| label: ref-source-prep
+
 referral_source_table_prep <- complex_care_initiated %>% 
   select(
     client_number,
@@ -345,6 +748,8 @@ referral_source_table_prep <- complex_care_initiated %>%
   arrange(desc(Total))
 ```
 ```{r}
+#| label: ref-source-table
+
 ref_source_table <- referral_source_table_prep %>%
   rename(
     `Referral Source` = roster_complex_care_referral_source_description
@@ -364,28 +769,40 @@ ref_source_table <- referral_source_table_prep %>%
   kable_styling(
     bootstrap_options = c("striped", "hover", "condensed"),
     full_width = FALSE,
-    position = "left"
+    position = "left",
+    font_size = 11
   ) %>%
   row_spec(
     0,
     bold = TRUE,
-    background = "#BCDFF1"
+    background = "#BCDFF1",
+    extra_css = "padding: 3px 5px !important;"
+  ) %>%
+  row_spec(
+    1,
+    extra_css = "padding: 2px 5px !important; line-height: 1.1;"
   ) %>%
   column_spec(
     1,
-    width = "12em"
-   ) %>%
+    width = "9em"
+  ) %>%
   column_spec(
     2:3,
-    width = "10em",
+    width = "8em"
   ) %>%
   column_spec(
     4,
-    width = "10em",
+    width = "5em",
     bold = TRUE
-  ) %>% 
+  ) %>%
   add_header_above(
-    c(" " = 1, "Client Counts" = 3)
+    c(" " = 1, "Client Counts" = 3),
+    line = FALSE,
+    extra_css = "
+      border-top: none !important;
+      padding: 2px 5px !important;
+      line-height: 1.1;
+    "
   )
 
 ref_source_table
@@ -394,6 +811,8 @@ ref_source_table
 
 <!-- Rationale, Not Selected -->
 ```{r}
+#| label: rationale-not-selected-prep
+
 rationale_not_selected_tab_prep <- complex_care_initiated %>% 
   select(
     client_number,
@@ -419,6 +838,8 @@ rationale_not_selected_tab_prep <- complex_care_initiated %>%
   )
 ```
 ```{r}
+#| label: rationale-not-selected-table
+
 rationale_not_selected_tab <- rationale_not_selected_tab_prep %>% 
   adorn_totals(
     "row"
@@ -429,7 +850,8 @@ rationale_not_selected_tab <- rationale_not_selected_tab_prep %>%
   ) %>%  
   kable_styling(
     bootstrap_options = c("striped", "condensed"),
-    full_width = FALSE
+    full_width = FALSE,
+    font_size = 10
   ) %>% 
   row_spec(
     0,
@@ -446,6 +868,9 @@ rationale_not_selected_tab
 
 <!-- Other Outcomes -->
 ```{r}
+#| label: other-outcomes-prep
+
+
 other_outcomes_tab_prep <- complex_care_initiated %>% 
   select(
     client_number,
@@ -473,6 +898,9 @@ other_outcomes_tab_prep <- complex_care_initiated %>%
 ```
 
 ```{r}
+#| label: other-outcomes-table
+
+
 other_outcomes_tab <- other_outcomes_tab_prep %>% 
   adorn_totals(
     "row"
@@ -491,11 +919,11 @@ other_outcomes_tab <- other_outcomes_tab_prep %>%
     background = "#B6D1E3"
   ) %>%
   row_spec(
-    5,
+    nrow(other_outcomes_tab_prep) + 1,
     bold = TRUE
   ) 
 
-
+other_outcomes_tab
 
 outcome_lines <- other_outcomes_tab_prep %>%
   mutate(
@@ -510,41 +938,36 @@ outcome_lines <- other_outcomes_tab_prep %>%
   ) %>%
   pull(lines)
 
-other_outcomes_take2 <- paste0(
+other_outcomes_take2 <-  paste0(
   '
-  <div style="display:flex; align-items:flex-start; gap:25px; margin-top:10px;">
+  <div>
     <div style="
-      background:#8ECBE8;
-      padding:10px 30px 10px 18px;
-      font-size:1.2em;
-      font-weight:bold;
-      clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%);
-      white-space:nowrap;
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 4px;
     ">
       Other Outcomes
     </div>
 
-    <div style="font-size:1.1em;">
-      <ul style="margin:0; padding-left:1.2em;">
-        ',
-        outcome_lines,
-      '
-      </ul>
-    </div>
+    <ul class="other-outcomes">
+      ',
+      outcome_lines,
+    '
+    </ul>
   </div>
   '
 )
-
 
 ```
 
 <!-- discharges -->
 ```{r}
-discharged_pfp <- complex_care_full_data %>% 
+#| label: discharges-prep
+
+discharged_from_cohort <- complex_care_full_data %>% 
   filter(
-    pfp_discharge_pfp_discharge_date >= params$start_date,
-    pfp_discharge_pfp_discharge_date <= params$end_date
-    ) %>% 
+    enrollment_ending_date >= params$start_date,
+    enrollment_ending_date <= params$end_date) %>% 
   select(
     client_number,
     client_last,
@@ -561,9 +984,12 @@ discharged_pfp <- complex_care_full_data %>%
     benchmarks_complete_admission_service_date,
     benchmarks_treatment_team_assignment_date,
     pfp_discharge_pfp_discharge_date
+  ) |> 
+  filter(
+    dismissal_reason_description != "Not Selected For The Cohort"
   )
 
-discharged_pfp_plot_prep <- discharged_pfp %>% 
+discharged_pfp_plot_prep <- discharged_from_cohort %>% 
   count(
     dismissal_reason_description,
     name = "n"
@@ -577,13 +1003,13 @@ discharged_pfp_plot_prep <- discharged_pfp %>%
     dismissal_reason_description =
       forcats::fct_reorder(
         dismissal_reason_description,
-        n
-        )
+        n )
       )
 
 ```
 ```{r}
-#Plot
+#| label: discharges-plot
+
 discharge_summary_plot <- 
    ggplot(
      discharged_pfp_plot_prep,
@@ -594,17 +1020,17 @@ discharge_summary_plot <-
   )+ 
     geom_col(
     fill = "#4DA3D9",
-    width = 0.85
+    width = 0.75
   ) +
   geom_text(
     aes(label = n),
     color = "white",
     fontface = "bold",
     size = 4,
-    hjust = 1.2   # pushes text inside bar
+    hjust = 1.3   # pushes text inside bar
   ) +
   labs(
-    title = "Dismissals from Cohort",
+    title = NULL,
     x = NULL,
     y = NULL
   ) +
@@ -616,24 +1042,559 @@ discharge_summary_plot <-
     panel.grid.major.y = element_blank(),
     panel.grid.minor = element_blank(),
     plot.title = element_text(face = "bold"),
-    axis.text.y = element_text(size = 11, face = "bold"),
+    axis.text.y = element_text(size = 11),
     panel.grid = element_blank(),
     axis.text.x = element_blank()
   )
 
 
-#table
-
+discharge_summary_plot
 
 ```
 
 <!-- Alerting counts -->
 
-<!-- alerting heatmap -->
+```{r}
+#| label: alerting counts
 
+#Filter to just clients active (on the alerting watchlist) during this reporting period
+#Filter out any supplemental support clients
+clients_active_fiscal_year <- complex_care_full_data %>%
+  filter(
+    !is.na(roster_added_cohort_date),
+    roster_added_cohort_date <= "2026-09-30",
+    (enrollment_ending_date >= params$start_date |
+      is.na(enrollment_ending_date)
+  )
+ ) %>% 
+  filter(
+    roster_program_assigned != "Mercy BEACN - Supplemental Support"
+  )
+
+#Selects only key columns. Filters to the latest enrollment to ensure one row per client
+clients_active_fiscal_select <- clients_active_fiscal_year %>%
+  filter(
+    !is.na(roster_added_cohort_date),
+    roster_added_cohort_date <= params$start_date,
+    (enrollment_ending_date >= params$start_date |
+      is.na(enrollment_ending_date)
+  )
+ ) %>% 
+  select(
+    client_first,
+    client_last,
+    mrn_mercy,
+    client_number,
+    eto_case_num,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    roster_program_assigned,
+    benchmarks_enrollment_date,
+    benchmarks_complete_admission_service_date,
+    pfp_discharge_pfp_discharge_date,
+    enrollment_ending_date
+  ) %>% 
+  group_by(
+    mrn_mercy
+  ) %>% 
+  filter(
+    enrollment_starting_date == max(
+      enrollment_starting_date
+    )
+  ) %>% 
+  ungroup()
+
+#Create a list of possible member id values
+member_id_lookup <- clients_active_fiscal_select %>%
+  pivot_longer(
+    cols = c(
+      client_number,
+      eto_case_num
+    ),
+    names_to = "matched_id_type",
+    values_to = "member_id"
+  ) %>%
+  filter(
+    !is.na(member_id),
+    member_id != ""
+    ) %>%
+  distinct(
+    member_id,
+    .keep_all = TRUE
+  ) %>% 
+  select(
+    client_first,
+    client_last,
+    mrn_mercy,
+    member_id,
+    matched_id_type,
+    roster_program_assigned
+  )
+
+#filter alerting data to the correct date range and filter out any irrelevant member_ids
+alerting_data_filtered <- alerting_data %>% 
+  mutate(
+    member_id = as.character(atd_member_id),
+    month_calendar_year_alert = zoo::as.yearmon(
+      atd_discharge_date,
+      "%B %Y"
+    )
+  ) %>% 
+  filter(
+    atd_discharge_date >= params$start_date,
+    atd_discharge_date <= params$end_date
+  ) %>% 
+  filter(
+    member_id %in% member_id_lookup$member_id
+    )
+
+#Count of distinct clients with alerts during the period
+distinct_clients_alerting_data <- alerting_data_filtered |>
+  summarise(
+    distinct_clients = n_distinct(client_number, na.rm = TRUE)
+  )
+
+#Filter's this periods alerting data to only show rows where the alert occurred prior to the client's enrollment
+pre_enrollment_alerts <- alerting_data_filtered |> 
+ filter(
+  is.na(benchmarks_enrollment_date) |
+  atd_discharge_date <= benchmarks_enrollment_date
+ )
+
+
+#JOin look up table with alerting table to add matched_id_type
+alerting_data_w_type <- alerting_data_filtered %>% 
+  left_join(
+    member_id_lookup,
+    by = "member_id"
+  ) %>% 
+  select(
+    -client_first,
+    -client_last,
+    -mrn_mercy.y
+  ) %>% 
+  rename(
+    mrn_mercy = mrn_mercy.x
+  )
+
+alerting_facility_location <- alerting_data_filtered %>% 
+  filter(
+    two_county == 1
+  ) %>% 
+  count(
+    atd_visit_facility,
+    name = "facility"
+  )
+
+
+
+alerting_data_all_cohort <- alerting_data_w_type %>% 
+  select(
+    client_number,
+    atd_member_id,
+    atd_admit_date,
+    atd_iso_week,
+    atd_iso_year,
+    month_calendar_year_alert,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    benchmarks_enrollment_date,
+    enrollment_ending_date,
+    enrollment_status
+  ) %>% 
+  filter(
+    !is.na(enrollment_status)
+  )
+
+
+#Monthly alerts by all clients
+monthly_alerts_by_client_all  <- alerting_data_all_cohort |> 
+ group_by(
+  client_number,
+  month_calendar_year_alert
+ ) |> 
+ summarise(
+  n_alerts = n_distinct(
+   atd_admit_date,
+   na.rm = TRUE
+  ),
+  .groups = "drop"
+ ) |> 
+ pivot_wider(
+  id_cols = client_number,
+  names_from = month_calendar_year_alert,
+  values_from = n_alerts,
+  values_fill = 0
+ )
+
+
+alerts_by_month_status_wide <- alerting_data_all_cohort %>%
+  count(
+    month_calendar_year_alert,
+    enrollment_status,
+    name = "alert_count"
+  ) %>%
+  pivot_wider(
+    names_from = enrollment_status,
+    values_from = alert_count,
+    values_fill = 0
+  ) %>%
+  mutate(
+    Total = rowSums(
+      across(where(is.numeric)),
+      na.rm = TRUE
+    )
+  ) %>%
+  arrange(
+    month_calendar_year_alert
+    ) %>% 
+  adorn_totals(
+    "row"
+  )
+
+alerts_month_status_tab <- alerts_by_month_status_wide %>%
+  rename(
+    `Month` = month_calendar_year_alert
+  ) %>%
+  kable(
+    align = c("l", "c", "c", "c"),
+    escape = FALSE,
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = FALSE,
+    position = "left",
+    font_size = 10
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE,
+    background = "#BCDFF1"
+  ) %>%
+  column_spec(
+    1,
+    width = "6em"
+   ) %>%
+  column_spec(
+    2:3,
+    width = "6em",
+  ) %>%
+  column_spec(
+    4,
+    width = "6em",
+    bold = TRUE
+  )
+
+alerts_month_status_tab
+
+
+```
+
+<!-- alerting heatmap -->
+```{r}
+#| label: alerting-heatmap
+
+# Create a vector of visit types of interest.
+vis_type <- c(
+  "Emergency",
+  "Inpatient",
+  "Behavioral Health",
+  "General Medicine"
+)
+
+# Bold label vector for business days of the week
+business_days  <- c(
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday"
+  )
+
+# Bold label vector for business hours
+business_hours <- as.character(
+  8:17
+  )
+
+# Reverse the YellowOrangeRed palette
+rev_cols <- rev(
+  RColorBrewer::brewer.pal(
+    9,
+    "YlOrRd"
+    )
+  )
+
+# Create a vector for shifting the hour sequence to start with 8 a.m.
+rotated_hours <- c(
+  8:23,
+  0:7
+)
+
+# Prepare heatmap plot data.
+heatmap_data <- alerting_data %>%
+  filter(
+    seven_county == 1
+  ) %>% 
+  filter(
+    atd_alert_date >= "2026-07-01" &
+      atd_alert_date <= "2026-09-30"
+  ) %>% 
+  filter(
+    atd_visit_type %in% vis_type
+  ) %>% 
+  filter(
+    !is.na(
+      atd_alert_hour
+      ),
+    !is.na(
+      atd_alert_dow
+      )
+    ) %>%
+  mutate(
+    # # Factor using standard hourly scale 0:23
+    # alert_hour = factor(
+    #   alert_hour,
+    #   levels = 0:23
+    # ),
+    # Factor using rotated hourly scale 8:23; 0:7
+    atd_alert_hour = factor(
+      atd_alert_hour,
+      levels = rotated_hours
+    ),
+    # Reverse day of week order so Sunday appears at the top of the heatmap
+    atd_alert_dow = factor(
+      atd_alert_dow_chr,
+      levels = c(
+        "Saturday",
+        "Friday",
+        "Thursday",
+        "Wednesday",
+        "Tuesday",
+        "Monday",
+        "Sunday"
+        )
+      )
+    ) %>% 
+  count(
+    atd_alert_dow,
+    atd_alert_hour
+    )
+
+# Identify numeric positions for days of the week
+dow_levels <- levels(
+  heatmap_data$atd_alert_dow
+  )
+
+# Identify numeric positions for hours
+hour_levels <- levels(
+  heatmap_data$atd_alert_hour
+  )
+
+# Create 12-hour label vector using the standard hour order of 0:23
+hour_labels_12 <- format(
+  strptime(
+    0:23,
+    format = "%H"
+    ),
+  "%I %p"
+  )
+
+# Remove leading zeros
+hour_labels_12 <- sub(
+  "^0", "",
+  hour_labels_12
+  )
+
+# Change to lower case for a.m./p.m.
+hour_labels_12 <- tolower(
+  hour_labels_12
+  )
+
+# Change am to a.m.
+hour_labels_12 <- gsub(
+  "am",
+  "a",
+  hour_labels_12
+  )
+
+# Change pm to p.m.
+hour_labels_12 <- gsub(
+  "pm",
+  "p",
+  hour_labels_12
+  )
+
+# Define 12-hour labels for the rotated hour scale starting with 8 a.m. Use +1
+# because R is 1-indexed.
+hour_labels_12_rotated <- hour_labels_12[rotated_hours + 1]
+
+# Compute the corners for the business week rectangle
+x_min <- which(
+  hour_levels == "8"
+  )  - 0.5
+x_max <- which(
+  hour_levels == "17"
+  ) + 0.5
+y_min <- which(
+  dow_levels  == "Friday"
+  ) - 0.5
+y_max <- which(
+  dow_levels  == "Monday"
+  ) + 0.5
+
+# Create a five-point path that traces the perimeter of the business week block
+# and save to data frame
+rect_outline <- data.frame(
+  x = c(
+    x_min,
+    x_max,
+    x_max,
+    x_min,
+    x_min
+    ),
+  y = c(
+    y_min,
+    y_min,
+    y_max,
+    y_max,
+    y_min
+    )
+)
+
+# ------------------------------------------------------------------------------
+# HEATMAP: Alerts by Day of Week and Hour of Day
+#
+# Purpose:
+#   Visualize temporal patterns in ATD alerts to identify operational gaps
+#   between alert timing and outreach team availability.
+#
+# Key design decisions:
+#   - Hours on x-axis (left-to-right scanning emphasizes hourly patterns)
+#   - Days on y-axis (Sunday at top for intuitive calendar orientation)
+#   - Darker colors = more alerts (reversed YlOrRd palette)
+#   - Dashed rectangle highlights business hours (Mon–Fri, 8–17)
+#   - Square tiles for perceptual balance (coord_fixed)
+# ------------------------------------------------------------------------------
+heatmap <- ggplot() +
+  # Draw the individual tiles
+  geom_tile(
+    data = heatmap_data,
+    aes(
+      x = as.numeric(
+        atd_alert_hour
+        ),
+      y = as.numeric(
+        atd_alert_dow
+        ),
+      fill = n
+      ),
+    color = "white"
+    ) +
+  # Draw a dashed border around the business week. Use of geom_path() avoids
+  # clipping issues in geom_rect()
+  geom_path(
+    data = rect_outline,
+    aes(
+      x = x,
+      y = y
+      ),
+    color = "black",
+    linetype = "dashed",
+    linewidth = 1
+  ) +
+  # scale_x_continuous for the standard 0:23 hourly scale
+  # scale_x_continuous(
+  #   breaks = seq_along(
+  #     hour_levels
+  #   ),
+  #   labels = hour_labels_12,
+  #   expand = c(
+  #     0, 
+  #     0
+  #   )
+  # ) + 
+  # scale_x_continuous for rotated hourly scale 8:23; 0:7
+  scale_x_continuous(
+    breaks = seq_along(
+      rotated_hours
+      ),
+    labels = hour_labels_12_rotated,
+    expand = c(
+      0,
+      0
+    )
+  ) +
+  scale_y_continuous(
+    breaks = seq_along(
+      dow_levels
+    ),
+    labels = dow_levels,
+    expand = c(
+      0,
+      0
+    )
+  ) +
+  # Fill palette
+  scale_fill_gradientn(
+    colours = rev_cols,
+    trans = "reverse"
+  ) +
+  labs(
+    # title = "ATD Alerts by Day of Week and Hour",
+    x = "Hour of Day",
+    y = "Day of Week",
+    fill = "Alert Count"
+    # caption = "Includes ATD alerts from visit facilities in the seven-county eastern Missouri region (St. Louis area), limited to Behavioral Health, Emergency, General Medicine, and Inpatient visits, for alerts sent on or after July 1, 2025."
+  ) +
+  theme_minimal(
+    base_size = 14
+    ) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_text(
+      face = ifelse(
+        levels(
+          heatmap_data$atd_alert_hour
+          ) %in% business_hours,
+        "bold",
+        "plain"
+        ),
+      size = 8
+      ),
+    axis.text.y = element_text(
+      face = ifelse(
+        levels(
+          heatmap_data$atd_alert_dow
+          ) %in% business_days,
+        "bold",
+        "plain"
+        )
+      ),
+    legend.position = "bottom"
+    ) + 
+  # Force square tiles for perceptual clarity
+  coord_fixed()
+
+heatmap
+
+```
+
+
+
+
+<!-- Outreach Data -->
+```{r}
+#| label: outreach
+
+
+```
 
 <!-- Hospital encounters by client status -->
 ```{r}
+#| label: utilization-data-prep
+
+#Any admissions that occurred during this quarter
 quarterly_mercy_utilization <- mercy_utilization %>% 
   filter(
     !is.na(adm_date_time),
@@ -641,6 +1602,9 @@ quarterly_mercy_utilization <- mercy_utilization %>%
     adm_date_time <= params$end_date
   )
 
+#Filter FAMCare data to include only clients in the cohort for some length of time this quarter
+#left join mercy data.
+#Create In Outreach vs. Enrolled column
 cohort_v_enrolled_utiliz_tab_prep <-complex_care_full_data %>% 
   filter(
     !is.na(roster_added_cohort_date),
@@ -759,6 +1723,9 @@ encounter_summary_tab
 <!-- Hospital encounters for enrolled clients -->
 <!-- in progress -->
 ```{r}
+#| label: hosp-encounters-enrolled-prep
+
+
 enrolled_utilization_viz_prep <- complex_care_full_data %>% 
   filter(
     (is.na(enrollment_ending_date) | enrollment_ending_date >=params$start_date),
@@ -792,6 +1759,8 @@ adm_counts_class <- enrolled_utilization_viz_prep %>%
 ```
 
 ```{r}
+#| label: hosp-encounters-enrolled-plot
+
 #Calculate how many clients had admissions during q2. Use for N on visual.
 n_clients_chart <- adm_counts_class %>%
   distinct(
@@ -841,8 +1810,8 @@ adm_counts_by_enrolled_client <- ggplot(
     )
   ) +
   labs(
-    title = "Count of Hospital Encounters for Enrolled Clients",
-    subtitle = paste0("N = ", n_clients_chart),
+    # title = "Count of Hospital Encounters for Enrolled Clients",
+    # subtitle = paste0("N = ", n_clients_chart),
     x = NULL,
     y = NULL,
     fill = NULL
@@ -860,6 +1829,681 @@ adm_counts_by_enrolled_client <- ggplot(
 adm_counts_by_enrolled_client
 ```
 
+<!-- Count of clients enrolled with no utilization this quarter -->
+```{r}
+
+```
+
+```{r}
+#Enrolled Clients and their utilization data
+quarter_enrolled_clients <- complex_care_full_data %>% 
+  filter(
+    !is.na(benchmarks_enrollment_date),
+    benchmarks_enrollment_date <= params$end_date,
+    (is.na(enrollment_ending_date) | enrollment_ending_date >= params$start_date
+  )
+  ) %>% 
+  arrange(
+    mrn_mercy,
+    desc(enrollment_starting_date
+         )
+    ) %>% 
+  distinct(
+    mrn_mercy,
+    .keep_all = TRUE
+    ) %>% 
+  filter(
+    roster_program_assigned != "Mercy BEACN - Supplemental Support",
+    !is.na(benchmarks_docserno)
+  )
+
+
+quarterly_enrolled_utilization <- quarter_enrolled_clients %>% 
+  left_join(
+    mercy_utilization,
+    by = c("mrn_mercy" = "pat_mrn_id")
+  ) 
+
+
+dupes_x <- quarter_enrolled_clients %>% 
+  count(mrn_mercy) %>% 
+  filter(n > 1)
+```
+
+<!-- Utilization Pre and Post Enrollment Plot -->
+
+```{r}
+#| label: annual-utilization-vis-setup
+# Calculate months elapsed post-enrollment per patient based on the date_created field from the Mercy extract:
+patient_windows <- quarterly_enrolled_utilization %>%
+	select(
+		mrn_mercy,
+		benchmarks_enrollment_date,
+		date_created
+	) %>%
+  distinct(
+    mrn_mercy,
+		benchmarks_enrollment_date,
+		.keep_all = TRUE
+  ) %>% 
+  group_by(
+    mrn_mercy,
+		benchmarks_enrollment_date,
+		date_created
+  ) %>% 
+	reframe(
+		months_post = interval(
+			benchmarks_enrollment_date,
+			date_created
+		) %/% months(
+			1
+		),
+		months_pre = interval(
+		  date_created,
+		  benchmarks_enrollment_date
+		) %/% months(
+			1
+		)
+	)
+
+#Count total clients who appear in the utilization data
+n_clients <- quarterly_enrolled_utilization %>%
+  filter(
+  !is.na(benchmarks_enrollment_date)
+  )%>% 
+  distinct(client_number) %>%
+  nrow()
+
+#Create ed_visit and ip_visit
+
+# Left join patient_windows to complex_care_full_data
+utilization_w_month_diff <- quarterly_enrolled_utilization %>%
+	left_join(
+		patient_windows,
+		by = c(
+			"mrn_mercy",
+			"benchmarks_enrollment_date",
+			"date_created"
+		)
+	) %>%
+	mutate(
+		month_diff = interval(
+			benchmarks_enrollment_date,
+			adm_date_time
+		) %/% months(
+			1
+		)
+	) %>% 
+	filter(
+		month_diff >= -months_post &
+			month_diff <= months_post
+	) %>%
+  group_by(
+		month_diff
+	) %>%
+  mutate(
+    ed_visit = case_when(
+      patient_class == "Emergency" ~ 1,
+      .default = 0
+    )
+  ) %>% 
+  mutate(
+    inpatient_visit = case_when(
+      patient_class == "Inpatient" ~ 1,
+      .default = 0
+    )
+  ) %>% 
+  summarize(
+    ed_count = sum(
+			ed_visit,
+			 na.rm = TRUE
+		),
+    ip_count = sum(
+			inpatient_visit,
+			 na.rm = TRUE
+		),
+    distinct_patients = n_distinct(
+			mrn_mercy
+		)
+  ) %>%
+  ungroup()
+
+# Reshape for line plotting
+line_data <- utilization_w_month_diff %>%
+  select(
+		month_diff,
+		 ed_count,
+		  ip_count
+		) %>%
+  pivot_longer(
+		cols = c(
+			ed_count,
+			 ip_count
+			),
+			names_to = "utilization_type",
+      values_to = "count"
+		)
+```
+<!-- pre/post plot -->
+```{r}
+#| label: quarterly-beacn-utilization-pre-post-plot
+
+quarterly_becn_utilization_pre_post_plot <- ggplot() +
+  geom_col(
+		data = utilization_w_month_diff,
+		aes(
+			x = month_diff,
+			y = distinct_patients
+		),
+		fill = "grey80"
+		) +
+  geom_line(
+		data = line_data,
+		aes(
+			x = month_diff,
+			y = count,
+			color = utilization_type
+		),
+		linewidth = 1.2
+		) +
+  geom_vline(
+    xintercept = 0, linetype = "dashed"
+    ) +
+#   geom_text(
+#     data = key_points,
+#     aes(
+#       x = month_diff,
+#       y = count,
+#       label = count
+#       ),
+#     vjust = -0.6,
+#     show.legend = FALSE
+# )+
+  scale_x_continuous(
+    limits = c(-18,18),
+    breaks = seq(-15,15, by = 5)
+    ) +
+  scale_y_continuous(
+    limits = c(0, 125),
+    breaks = seq(0,120, by = 10)
+    )+
+  scale_color_manual(
+		values = c(
+			ed_count = "#0072B2",
+			ip_count = "#D55E00"
+			),
+			labels = c(
+				ed_count = "ED Utilization",
+				ip_count = "Inpatient Utilization"
+			)
+		) +
+  labs(
+    x = "Months Before and After PfP Enrollment",
+    y = "",
+    color = "Utilization Type"
+    # title = "Utilization Pre- and Post-Enrollment",
+    # subtitle = paste0(
+    # "(N = ",
+    # n_clients,
+    # ")"
+  # )
+  )+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.grid = element_blank(),
+    legend.position = "bottom",
+    legend.title = element_blank()
+  )
+
+quarterly_becn_utilization_pre_post_plot
+
+```
+
+
+<!-- Test for Outliers -->
+
+```{r}
+utilization_test <- quarterly_enrolled_utilization |> 
+  filter(
+    !is.na(client_number)
+    ) |>
+  count(
+    client_number,
+    name = "n_admissions") |>
+  mutate(
+    admission_z = as.numeric(
+      scale(
+        n_admissions
+        )
+      ),
+    high_utilization_outlier = admission_z >= 3
+  )
+
+
+```
+
+<!-- 30-Day Return Rates -->
+```{r}
+#| label: thirty-day-return-setup
+# Note - filter out high-utilizers first
+thirty_day_return_setup <- quarterly_enrolled_utilization %>% 
+  select(
+    client_number,
+    client_last,
+    client_first,
+    mrn_mercy,
+    benchmarks_enrollment_date,
+    date_created,
+    adm_date_time,
+    patient_class,
+    ed_visit,
+    inpatient_visit,
+    ed_30day_return_flag,
+    ip_30day_return_flag
+  ) 
+
+thirty_day_return_check <- thirty_day_return_setup |> 
+  filter(
+    ed_30day_return_flag == 1
+  )
+
+patient_windows_thirty_day <- thirty_day_return_setup %>%
+	select(
+		mrn_mercy,
+		benchmarks_enrollment_date,
+		date_created
+	) %>%
+  distinct(
+    mrn_mercy,
+		benchmarks_enrollment_date,
+		date_created,
+		.keep_all = TRUE
+  ) %>% 
+  group_by(
+    mrn_mercy,
+		benchmarks_enrollment_date,
+		date_created
+  ) %>% 
+	reframe(
+		months_post = interval(
+			benchmarks_enrollment_date,
+			date_created
+		) %/% months(
+			1
+		),
+		months_pre = interval(
+		  date_created,
+		  benchmarks_enrollment_date
+		) %/% months(
+			1
+		)
+	)
+
+n_clients_30_day_ed <- thirty_day_return_setup %>%
+  filter(
+  !is.na(benchmarks_enrollment_date),
+  patient_class == "Emergency"
+  ) %>% 
+  distinct(client_number) %>%
+  nrow()
+
+n_clients_30_day_ip <- thirty_day_return_setup %>%
+  filter(
+  !is.na(benchmarks_enrollment_date),
+  patient_class == "Inpatient"
+  ) %>% 
+  distinct(client_number) %>%
+  nrow()
+
+thirty_day_return_with_month_diff <- thirty_day_return_setup %>% 
+  left_join(
+    patient_windows_thirty_day,
+    by = c(
+      "mrn_mercy",
+      "benchmarks_enrollment_date",
+      "date_created"
+    )
+  )%>%
+	mutate(
+		month_diff = interval(
+			benchmarks_enrollment_date,
+			adm_date_time
+		) %/% months(
+			1
+		),
+		period = case_when(
+      adm_date_time < benchmarks_enrollment_date  ~ "Pre",
+      adm_date_time >= benchmarks_enrollment_date ~ "Post",
+      .default = NA_character_
+    )
+	) %>% 
+	filter(
+		month_diff >= -months_post &
+			month_diff <= months_post
+	) %>%
+  group_by(
+		month_diff
+	)
+
+#########
+#This section was added after production of the final brief to verify rates
+#and assure PMs of accuracy.
+
+client_rates <- thirty_day_return_with_month_diff |> 
+  group_by(
+    client_number,
+    period
+    )%>%
+  summarise(
+    ed_visits = sum(ed_visit == 1, na.rm = TRUE),
+    ed_returns = sum(ed_visit == 1 & ed_30day_return_flag == 1, na.rm = TRUE),
+    ip_visits = sum(inpatient_visit == 1, na.rm = TRUE),
+    ip_returns = sum(inpatient_visit == 1 & ip_30day_return_flag == 1, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    ed_return_rate = ed_returns / na_if(ed_visits, 0),
+    ip_return_rate = ip_returns / na_if(ip_visits, 0)
+  ) |> 
+  pivot_wider(
+    id_cols = client_number,
+    names_from = period,
+    values_from = c(
+      ed_visits,
+      ed_returns,
+      ip_visits,
+      ip_returns,
+      ed_return_rate,
+      ip_return_rate
+    ),
+    names_glue = "{.value}_{period}",
+    names_vary = "slowest"
+  ) |> 
+  mutate(
+  across(
+    contains("_rate"),
+    ~ scales::percent(.x, accuracy = 0.1)
+  )
+)
+
+client_return_rates <- client_rates %>%
+  group_by(period) %>%
+  summarise(
+    ed_return_rate_overall = sum(ed_returns) / na_if(sum(ed_visits), 0),
+    ip_return_rate_overall = sum(ip_returns) / na_if(sum(ip_visits), 0),
+    .groups = "drop"
+  )
+
+
+client_rates_by_period <- client_rates %>%
+  select(client_number, period, ed_return_rate, ip_return_rate) %>%
+  tidyr::pivot_wider(
+    names_from = period,
+    values_from = c(ed_return_rate, ip_return_rate),
+    names_glue = "{.value}_{period}"
+  ) %>%
+  mutate(
+    across(
+      -client_number,
+      ~ scales::percent(.x, accuracy = 0.1)
+    )
+  )
+
+
+# openxlsx::write.xlsx(
+#   list(
+#     "Client Rates indiv" = client_rates,
+#     "Client Rates Overall" = client_return_rates
+#   ),
+#   file = paste0(
+#     "C:/Users/",
+#     Sys.info()[7],
+#     "/Behavioral Health Network of Greater St. Louis/BHN - Documents/Complex Care/Data & Evaluation/PHI/return_rate_check_",
+#     Sys.Date(),
+#       ".xlsx"
+# ),
+# overwrite = TRUE
+# )
+
+##########
+
+
+ed_return_w_month_diff <- thirty_day_return_with_month_diff %>%
+  filter(
+    ed_visit == 1
+    ) %>%
+  mutate(
+    ed_return_status = case_when(
+      ed_30day_return_flag == 1 ~ "30-Day ED Return",
+      ed_30day_return_flag == 0 ~ "30-Day ED Non-Return",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(
+    !is.na(ed_return_status)
+    ) %>%
+  group_by(
+    month_diff,
+    ed_return_status
+    ) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  )
+
+
+ip_return_w_month_diff <- thirty_day_return_with_month_diff %>%
+  filter(
+    inpatient_visit == 1
+    ) %>%
+  mutate(
+    ip_return_status = case_when(
+      ip_30day_return_flag == 1 ~ "30-Day IP Return",
+      ip_30day_return_flag == 0 ~ "30-Day IP Non-Return",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(
+    !is.na(ip_return_status)
+    ) %>%
+  group_by(
+    month_diff,
+    ip_return_status
+    ) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  )
+
+```
+```{r}
+#| label: ed-return-rate
+ed_return_rate <- thirty_day_return_with_month_diff %>%
+  filter(
+    ed_visit == 1
+    ) %>%
+  mutate(
+    period = case_when(
+      month_diff < 0  ~ "Pre",
+      month_diff > 0 ~ "Post",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(
+    !is.na(period)
+  ) %>% 
+  group_by(
+    period
+    ) %>%
+  summarise(
+    ed_visits = n(),
+    ed_returns_30d = sum(
+      ed_30day_return_flag == 1,
+      na.rm = TRUE
+      ),
+    ed_return_rate = ed_returns_30d / ed_visits,
+    .groups = "drop"
+  )
+
+ed_card_tbl <- ed_return_rate %>%
+  select(period
+         , ed_return_rate
+      ) %>%
+  mutate(
+    rate = scales::percent(
+      ed_return_rate,
+      accuracy = 0.1
+      )
+    ) %>%
+  select(
+    period,
+    rate
+    ) %>%
+pivot_wider(
+  names_from = period,
+  values_from = rate
+  ) %>%
+  select(
+    Pre,
+    Post
+    ) %>% 
+  kable(
+  col.names = c("Pre", "Post"),
+  align = "cc", 
+  escape = FALSE
+  ) %>%
+  add_header_above(
+    c("ED" = 2),
+    bold = TRUE,
+    font_size = 14
+  ) |> 
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("condensed", "bordered")
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE,
+    font_size = 12,
+    color = "#1F3A5F",
+    background = "#EEF3FF"
+    ) %>%
+  row_spec(
+    1,
+    bold = TRUE,
+    font_size = 12,
+    color = "#1F3A5F"
+    )%>%
+  column_spec(
+    1,
+    width = "6em"
+    ) %>%
+  column_spec(
+    2,
+    width = "6em"
+    ) 
+
+
+ed_card_tbl
+
+```
+```{r}
+#| label: ip-return-rate
+ip_return_rate <- thirty_day_return_with_month_diff %>%
+  filter(
+    inpatient_visit == 1
+    ) %>%
+  mutate(
+    period = case_when(
+      month_diff < 0  ~ "Pre",
+      month_diff > 0 ~ "Post",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(
+    !is.na(period)
+  ) %>% 
+  group_by(
+    period
+    ) %>%
+  summarise(
+    inpatient_visits = n(),
+    ip_30day_returns = sum(
+      ip_30day_return_flag == 1,
+      na.rm = TRUE
+      ),
+    ip_return_rate = ip_30day_returns / inpatient_visits,
+    .groups = "drop"
+  )
+
+
+
+
+ip_card_tbl <- ip_return_rate %>%
+  select(period,
+         ip_return_rate
+      ) %>%
+  mutate(
+    rate = scales::percent(
+      ip_return_rate,
+      accuracy = 0.1
+      )
+    ) %>%
+  select(
+    period,
+    rate
+    ) %>%
+pivot_wider(
+  names_from = period,
+  values_from = rate
+  ) %>%
+  select(
+    Pre,
+    Post
+    ) %>% 
+  kable(
+  col.names = c("Pre", "Post"),
+  align = "cc", 
+  escape = FALSE
+  ) %>%
+    add_header_above(
+    c("Inpatient" = 2),
+    bold = TRUE,
+    font_size = 14
+  ) |> 
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("condensed", "bordered")
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE,
+    font_size = 12,
+    color = "#1F3A5F",
+    background = "#EEF3FF"
+    ) %>%
+  row_spec(
+    1,
+    bold = TRUE,
+    font_size = 12,
+    color = "#1F3A5F"
+    )%>%
+  column_spec(
+    1,
+    width = "6em"
+    ) %>%
+  column_spec(
+    2,
+    width = "6em"
+    ) 
+
+
+ip_card_tbl
+```
 
 <!-- Quick test-->
 
@@ -894,3 +2538,1187 @@ optum_clients <- complex_care_full_data %>%
       )
 
 ```
+```{r}
+#| label: tot-adj-charges
+
+total_charges_step_one <- quarterly_enrolled_utilization %>% 
+  select(
+    client_number,
+    client_last,
+    client_first,
+    mrn_mercy,
+    benchmarks_enrollment_date,
+    adm_date_time,
+    patient_class,
+    tot_chgs,
+    tot_adj
+  ) %>% 
+  mutate(
+    period = case_when(
+      adm_date_time <  benchmarks_enrollment_date ~ "Pre-enrollment",
+      adm_date_time >= benchmarks_enrollment_date ~ "Post-enrollment"
+    )
+  )
+
+#Calculate total adjusted charges by client for both periods, pre and post enrollment
+adj_by_client_period <- total_charges_step_one %>%
+  group_by(
+    client_number,
+    client_last,
+    period
+    ) %>%
+  summarise(
+    total_adj = sum(
+      tot_adj,
+      na.rm = TRUE
+      ),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    names_from  = period,
+    values_from = total_adj,
+    values_fill = 0
+  ) %>%
+  mutate(
+    adj_change = `Post-enrollment` - `Pre-enrollment`,
+    direction = if_else(adj_change >= 0, "Positive", "Negative"),
+    client_number = reorder(client_number, -adj_change),
+    label = scales::dollar(adj_change)
+  )
+
+#Count number of bars/clients to use in label
+n__tot_adj_charges <- nrow(adj_by_client_period)
+
+
+charge_change_summary <- adj_by_client_period %>%
+  summarise(
+    clients_positive_change = sum(adj_change > 0, na.rm = TRUE),
+    clients_negative_change = sum(adj_change < 0, na.rm = TRUE),
+    clients_no_change = sum(adj_change == 0, na.rm = TRUE)
+  )
+
+```
+
+<!-- Total Adjusted Charges Card -->
+```{r}
+#Calculate total adjusted charges across all enrolled clients
+#Create as card-style visual
+tot_adj_charges_all_clients <- adj_by_client_period %>% 
+  summarise(
+    Pre_Enrollment  = sum(`Pre-enrollment`,  na.rm = TRUE),
+    Post_Enrollment = sum(`Post-enrollment`, na.rm = TRUE),
+    Total_change    = sum(`Post-enrollment`- `Pre-enrollment`, na.rm = TRUE)
+  ) %>% 
+  mutate(
+    across(
+      everything(),
+      ~ scales::dollar(.x, accuracy = 1)
+    )
+  ) %>% 
+  kable(
+    col.names = c("Pre-Enrollment", "Post-Enrollment", "Change"),
+    align = c("c", "c", "c"),
+    # caption = "<div style='
+    #     text-align:center;
+    #     font-size:14px;
+    #     font-weight:600;
+    #     color: #1F3A5F;
+    #     margin-bottom:2px;
+    #   '>Total Adjusted Charges, All Enrolled Clients</div>",
+    escape = FALSE
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = TRUE
+    # ,
+    # position = "left"
+  ) %>% 
+  row_spec(
+  0,
+  bold = TRUE,
+  font_size = 12
+  ) |> 
+  column_spec(
+  1:3,
+  bold = TRUE,
+  width = "6em",
+  extra_css = "
+    border: 1px solid #BDBDBD;
+  "
+) %>% 
+row_spec(
+  0:1,
+  extra_css = "
+    padding: 2px 2px;
+    border: 1px solid #BDBDBD;
+  "
+) %>% 
+column_spec(
+  3,
+  extra_css = "
+    border: 3px solid #2E7D32;
+    font-weight: bold;
+  "
+)
+  
+  
+  
+  
+
+  
+tot_adj_charges_all_clients
+
+```
+<!-- Housing -->
+```{r}
+#| label: housing
+current_housing_status_v2 <- complex_care_full_data %>%
+  filter(
+    !is.na(benchmarks_enrollment_date),
+    benchmarks_enrollment_date <= params$end_date,
+    (is.na(enrollment_ending_date) |
+    (enrollment_ending_date >= params$start_date
+     &
+     enrollment_ending_date <= params$end_date
+     )
+    )
+  )%>% 
+    select(
+    client_number,,
+    client_last,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    benchmarks_enrollment_date,
+    housing_initial_housing_status_description,
+    housing_latest_housing_status_description
+    )
+
+housing_status_change <- current_housing_status_v2 |> 
+  filter(
+    !is.na(housing_initial_housing_status_description)
+  ) |> 
+mutate(
+    housing_outcome = case_when(
+      !housing_initial_housing_status_description %in% c("Stably Housed", "Precariously Housed", "Institutionally Housed")
+      & housing_latest_housing_status_description %in% c("Stably Housed", "Precariously Housed", "Institutionally Housed")
+      ~ "Achieved housing",
+
+      housing_initial_housing_status_description %in% c("Stably Housed", "Precariously Housed", "Institutionally Housed")
+      & housing_latest_housing_status_description %in% c("Stably Housed", "Precariously Housed", "Institutionally Housed")
+      ~ "Maintained housing",
+
+      !is.na(housing_initial_housing_status_description) & !is.na(housing_latest_housing_status_description) ~
+        "Did not achieve/maintain housing",
+
+      TRUE ~ NA_character_
+    )
+  )
+
+housing_change_summary <- housing_status_change |> 
+  summarise(
+    n_clients = sum(!is.na(housing_outcome)),
+    
+    n_achieved_or_maintained = sum(
+      housing_outcome %in% c(
+        "Achieved housing",
+        "Maintained housing"
+      ),
+      na.rm = TRUE
+    ),
+    
+    pct_achieved_or_maintained =
+      n_achieved_or_maintained / n_clients
+  )
+
+#Pivot Longer to create one row per time point, so two rows per client. Collapse
+#Housing categories into housed and unhoused
+current_housing_status_plot_prep <- current_housing_status_v2 %>% 
+  pivot_longer(
+    cols = c(housing_initial_housing_status_description,
+             housing_latest_housing_status_description
+             ),
+    names_to = "timepoint",
+    values_to = "housing_status"
+  ) %>%
+  mutate(
+    timepoint = recode(
+      timepoint,
+      housing_initial_housing_status_description = "Baseline",
+      housing_latest_housing_status_description  = "Current"
+    ),
+    housing_binary = case_when(
+      housing_status %in% c("Institutionally Housed", "Precariously Housed", "Stably Housed") ~ "Housed",
+      housing_status == "Unhoused" ~ "Unhoused",
+      housing_status == "Unknown" ~ "Unknown",
+      TRUE ~ NA_character_
+    ),
+    housing_binary = factor(
+      housing_binary,
+      levels = c("Unhoused", "Housed", "Unknown")
+    )
+  ) 
+
+#Count only Non-Missing Values to Plot
+housing_counts <- current_housing_status_plot_prep %>%
+  filter(
+    !is.na(housing_binary)
+    ) %>%
+  count(
+    timepoint,
+    housing_binary,
+    name = "n"
+    ) %>% 
+  complete(
+    timepoint,
+    housing_binary,
+    fill = list(n=0)
+  )
+
+#Plot using collapsed categories
+binary_housing_plot <- ggplot(
+  housing_counts,
+  aes(x = timepoint,
+      y = n,
+      fill = housing_binary
+      )
+  ) +
+  geom_col(
+    position = position_dodge(width = 0.7),
+    width = 0.7
+    ) +
+  geom_text(
+    aes(label = if_else(n > 0, as.character(n), "")),
+    position = position_dodge(width = 0.7),
+    vjust = -0.3,
+    size = 6
+  ) +
+  labs(
+    title = NULL,
+    # subtitle = paste0(
+    #   "Missing/unknown excluded"
+    # ),
+    x = NULL,
+    y = NULL,
+    fill = NULL
+    # caption = "Note: Unknown values excluded"
+  ) +
+  scale_fill_manual(
+    values = c(
+  "Housed"   = "#0072B2", 
+  "Unhoused" = "#D55E00",
+  "Unknown" = "gray"
+    )
+  )+
+  scale_y_continuous(
+  expand = expansion(mult = c(0, 0.15))
+)+
+theme_minimal(base_size = 16) +
+theme(
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.text.x = element_text(size = 12),
+  legend.position = "bottom",
+  legend.text = element_text(size = 12),
+  plot.title = element_text(
+    size = 18,
+    hjust = 0.5
+  ),
+  plot.margin = margin(t = 15, r = 20, b = 10, l = 20)
+)
+
+binary_housing_plot
+
+```
+
+<!-- Payor -->
+```{r}
+#| label: payor
+#Select relevant columns. 
+#Pivot Longer to create one row per time point, so two rows per client. Collapse
+#Housing categories into housed and unhoused
+current_payor_plot_prep <- complex_care_full_data %>% 
+  filter(
+    !is.na(benchmarks_enrollment_date),
+    benchmarks_enrollment_date <= params$end_date,
+    (is.na(enrollment_ending_date) |
+    (enrollment_ending_date >= params$start_date &
+       enrollment_ending_date <= params$end_date)
+  ) 
+  )%>% 
+    select(
+    client_number,
+    client_last,
+    client_first,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    benchmarks_enrollment_date,
+    payor_initial_payor_source_description,
+    payor_latest_payor_source_description
+    ) %>% 
+  pivot_longer(
+    cols = c(payor_initial_payor_source_description,
+             payor_latest_payor_source_description
+             ),
+    names_to = "timepoint",
+    values_to = "payor_source"
+  ) %>%
+  mutate(
+    timepoint = recode(
+      timepoint,
+      payor_initial_payor_source_description = "Baseline",
+      payor_latest_payor_source_description  = "Current"
+    ),
+    insurance_binary = case_when(
+      payor_source %in% c("Medicaid", "Medicare", "Managed Medicaid", "Medicaid Application In Progress", "Dual Eligible (Medicare & Medicaid)", "Private Insurance") ~ "Insured",
+      payor_source == "Uninsured" ~ "Uninsured",
+      payor_source == "Unknown/Refused" ~ "Unknown",
+      TRUE ~ NA_character_   # includes Missing/Unknown/anything else
+    ),
+     insurance_binary = factor(
+      insurance_binary,
+      levels = c("Uninsured", "Insured", "Unknown")
+    )
+  ) 
+
+#Now Count only Non-Missing Values to Plot
+insurance_counts <- current_payor_plot_prep %>%
+  filter(
+    !is.na(insurance_binary)
+    ) %>%
+  count(
+    timepoint,
+    insurance_binary,
+    name = "n"
+    )%>% 
+  complete(
+    timepoint,
+    insurance_binary,
+    fill = list(n = 0)
+    )
+
+binary_insurance_plot <- ggplot(
+  insurance_counts,
+  aes(x = timepoint,
+      y = n,
+      fill = insurance_binary
+      )
+  ) +
+  geom_col(
+    position = position_dodge(width = 0.7),
+    width = 0.7
+    ) +
+  geom_text(
+    aes(label = ifelse(n == 0, "", n)),
+    position = position_dodge(width = 0.7),
+    vjust = -0.3,
+    size = 6
+  ) +
+  labs(
+    title = NULL,
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  scale_fill_manual(
+    values = c(
+  "Insured"   = "#0072B2", 
+  "Uninsured" = "#D55E00",
+  "Unknown" = "gray"
+    )
+  )+
+   scale_y_continuous(
+  expand = expansion(mult = c(0, 0.15))
+)+
+theme_minimal(base_size = 16) +
+theme(
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.text.x = element_text(size = 12),
+  legend.position = "bottom",
+  legend.text = element_text(size = 12),
+  plot.title = element_text(
+    size = 18,
+    hjust = 0.5
+  ),
+  plot.margin = margin(t = 15, r = 20, b = 10, l = 20)
+)
+
+
+binary_insurance_plot
+
+```
+
+<!-- Shelter Beds -->
+```{r}
+#| label: shelter-beds-single-column
+#| 
+complex_care_shelter_beds <- complex_care_data$complex_care_data$raw$complex_care_shelter_beds
+
+shelter_beds_step_one <- complex_care_shelter_beds %>% 
+  select(
+    visit_date,
+    client_number,
+    date_offered_shelter_bed,
+    decision_shelter_bed,
+    start_date_shelter_bed,
+    end_date_shelter_bed
+  ) %>% 
+  mutate(
+    start_date_shelter_bed = ymd(start_date_shelter_bed),
+    end_date_shelter_bed   = ymd(end_date_shelter_bed),
+    end_date_fixed = coalesce((end_date_shelter_bed - 1), params$end_date) 
+  ) %>%
+  filter(
+    !is.na(start_date_shelter_bed),
+    start_date_shelter_bed <= params$end_date,
+    start_date_shelter_bed >= params$start_date |
+    is.na(end_date_shelter_bed) |
+    end_date_shelter_bed >= params$start_date
+  )
+
+#Count distinct clients
+tot_clients <- shelter_beds_step_one %>% 
+ summarise(
+  n_clients = n_distinct(client_number)
+ )
+
+#Attempt to create BedID
+
+assign_beds <- function(shelter_beds_step_one) {
+
+  shelter_beds_step_one <- shelter_beds_step_one %>%
+    arrange(
+      start_date_shelter_bed,
+      end_date_fixed
+      )
+
+  bed_status <- reduce(
+    .x = seq_len(nrow(shelter_beds_step_one)),
+    .init = list(
+      bed_free = c(as.Date("1900-01-01"), as.Date("1900-01-01"), as.Date("1900-01-01")),
+      bed_id   = integer(nrow(shelter_beds_step_one))
+    ),
+    .f = function(bed_status, i) {
+
+      s <- shelter_beds_step_one$start_date_shelter_bed[i]
+      e <- shelter_beds_step_one$end_date_fixed[i]
+      free <- which(bed_status$bed_free <= s)
+      b <- if (length(free) >= 1) free[1] else NA_integer_
+      bed_status$bed_id[i] <- b
+      if (!is.na(b)) bed_status$bed_free[b] <- e
+
+      bed_status
+    }
+  )
+
+ shelter_beds_step_one %>%
+    mutate(
+      bed_id = if_else(is.na(bed_status$bed_id),
+                       NA_character_,
+                       paste0("Bed ", bed_status$bed_id)
+                       ),
+      error = is.na(bed_status$bed_id)
+    )
+}
+
+shelter_beds_w_id <- assign_beds(shelter_beds_step_one)
+
+  
+shelter_beds_id_long <- shelter_beds_w_id %>% 
+  rowwise() %>%
+  mutate(
+    last_night = end_date_fixed,
+    date = list(
+      seq(
+        from = start_date_shelter_bed,
+        to   = last_night,
+      by   = "day"
+    )
+    )
+  ) %>%
+  unnest(date) %>%
+  ungroup() %>%
+  filter(
+    date >= params$start_date,
+    date <= params$end_date
+  ) %>%
+  select(
+    date,
+    bed_id
+  )
+
+
+daily_utilization <- shelter_beds_id_long %>% 
+  count(
+    date,
+    name = "beds_used"
+  )
+
+
+#One column table of all possible nights bed could be used
+all_nights <- tibble(
+  date = seq(
+    params$start_date,
+    params$end_date,
+    by = "day"
+  )
+)
+
+bed_utilization <- all_nights %>% 
+  left_join(
+    daily_utilization,
+    by = "date"
+  ) %>% 
+  mutate(
+    beds_used = replace_na(
+      beds_used, 0
+      )
+  ) %>% 
+  tabyl(
+    beds_used
+  ) %>% 
+  rename(
+    `Beds In Use` = beds_used,
+    `Number of Nights` = n
+  )
+
+
+
+#Stacked Bar
+nights_and_beds_used_v2 <- daily_utilization %>% 
+  count(
+    beds_used,
+    name = "Nights"
+  ) %>% 
+  complete(
+    beds_used = 0:3,
+    fill = list(
+      Nights = 0
+      )
+  ) %>% 
+  arrange(
+    beds_used
+    )
+  
+#STOP EDIT THIS. It's hard coded based on the table above.
+#Plot Set up
+nights_and_beds_used <-  tibble(
+  beds_in_use = c(0, 1, 2, 3),
+  nights = c(0, 0, 0, 92)
+) %>%
+  mutate(
+    pct = nights / sum(nights),
+    beds_in_use = factor(
+      beds_in_use,
+      levels = c(3, 2, 1, 0),
+      labels = c("3 beds occupied", "2 beds occupied", "1 bed occupied", "0 beds occupied")
+      ),
+    label = paste0(
+      "atop(",
+        "bold(", nights, ")~' nights '~'(",
+        scales::percent(pct, accuracy = 1),
+        ")',",
+        "'", as.character(beds_in_use), "'",
+      ")"
+    )
+  )
+    
+#Plot
+shelter_stacked_bar <- ggplot(
+  nights_and_beds_used,
+  aes(
+    x = "92 nights (3 beds available)",
+    y = nights,
+    fill = beds_in_use
+    )) +
+  geom_col(
+    width = 0.6
+    ) +
+  geom_text(
+  data = nights_and_beds_used %>%
+    filter(nights > 0),
+  aes(label = label),
+  position = position_stack(vjust = 0.5),
+  color = "black",
+  size = 4,
+  parse = TRUE
+) +
+  scale_fill_manual(
+  values = c(
+    "0 beds occupied" = "#CCE6F3",
+    "1 bed occupied"  = "#80BFE3",
+    "2 beds occupied" = "#4DA3D9",
+    "3 beds occupied" = "#4DA3D9"
+  )
+) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.05))
+    ) +
+  labs(
+    #title = "Shelter Bed Utilization (Nights)",
+    # subtitle = "365 Nights (2 Beds available per night)",
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "none",
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_blank(),
+    plot.subtitle = element_text(
+      size = 12,
+      hjust = 0.5,
+      face = "bold"
+    )
+  )
+
+shelter_stacked_bar
+
+```
+```{r}
+#| label: shelter bed utilization callout
+
+three_beds_summary <- nights_and_beds_used %>%
+  filter(beds_in_use == "3 beds occupied") %>%
+  summarise(
+    nights = sum(nights),
+    pct = sum(pct)
+  )
+
+
+three_beds_html <- paste0(
+  '
+  <div style="
+    display:flex;
+    align-items:center;
+    gap:20px;
+    padding:15px 0;
+  ">
+
+    <i class="fa-solid fa-bed"
+       style="
+         font-size:3rem;
+         color:#0072B2;
+       ">
+    </i>
+
+    <div>
+
+      <div style="
+        font-size:2.5rem;
+        font-weight:700;
+        line-height:1;
+      ">
+        ',
+        scales::percent(three_beds_summary$pct, accuracy = 1),
+        '
+      </div>
+
+      <div style="
+        font-size:.95rem;
+        margin-top:3px;
+      ">
+        All 3 beds occupied across ',
+        three_beds_summary$nights,
+        ' nights
+      </div>
+
+    </div>
+
+  </div>
+  '
+)
+
+```
+
+```{r}
+#| label: outreach-alerting
+
+#Weekly alerts by clients in outreach
+#Have to run alerting chunk (above) first
+weekly_alerts_by_client_outreach <- pre_enrollment_alerts |> 
+ group_by(
+  client_number,
+  atd_iso_week
+ ) |> 
+ summarise(
+  n_alerts = n_distinct(
+   atd_admit_date,
+   na.rm = TRUE
+  ),
+  .groups = "drop"
+ ) |> 
+ rename(
+  iso_week = atd_iso_week
+ )
+
+
+#Select the columns needed, use mutate(across()) to convert the four outreach 
+#count fields to numeric so they can be summed.
+outreach_notes_summary_v2 <- complex_care_outreach_notes |> 
+ select(
+  -id,
+  -docserno,
+  -parent_docserno,
+  -visit_time,
+  -cc_outreach_collateral_contact_code
+ ) |>
+ mutate(
+  across(
+   c(
+    num_outreach_attempts_in_person,
+    num_outreach_attempts_phone_virtual,
+    num_outreach_attempts_at_hospital,
+    num_outreach_contact_w_client
+   ),
+   as.numeric
+  )
+ ) |>
+# Filter to notes marked "Yes" for cc_outreach_attempt, then group by
+# client_number so summarise() returns one row per client
+# Use first() to carry forward userid, tiedenrollment, and added_cohort_date
+# from each client's first retained row in the current data order.
+ filter(
+  cc_outreach_attempt == "Yes"
+ ) |> 
+ group_by(
+  client_number
+ ) |> 
+ summarise(
+  across(
+      c(
+        userid,
+        tiedenrollment,
+        added_cohort_date
+      ),
+      first
+    ),
+   weeks_w_outreach_attempt =  n_distinct(alert_week),
+   tot_outreach_client_contact = sum(
+     num_outreach_contact_w_client,
+     na.rm = TRUE
+    ),
+   tot_in_person_outreaches = sum(
+     num_outreach_attempts_in_person,
+      na.rm = TRUE
+    ),
+   tot_hospital_outreaches = sum(
+    num_outreach_attempts_at_hospital,
+    na.rm = TRUE
+   ),
+  tot_virtual_outreaches = sum(
+    num_outreach_attempts_phone_virtual,
+    na.rm = TRUE
+   ),
+    .groups = "drop"
+  )
+ 
+ 
+ #Join outreach notes summary (above) with benchmarks data
+cohort_outreach_v2 <- complex_care_full_data |> 
+ filter(
+  !is.na(roster_docserno),
+  !is.na(roster_added_cohort_date),
+  roster_added_cohort_date <= params$end_date,
+  (is.na(benchmarks_enrollment_date)|
+    benchmarks_enrollment_date >= params$start_date
+  ),
+  (is.na(enrollment_ending_date)|
+    enrollment_ending_date >= params$start_date
+  )
+ ) |> 
+left_join(
+  outreach_notes_summary_v2,
+  by = "client_number"
+ ) |> 
+ select(
+  client_number,
+    client_last,
+    client_first,
+    enrollment_starting_date,
+    ccnotes_decision,
+    roster_added_cohort_date,
+    benchmarks_docserno,
+    benchmarks_enrollment_date,
+    benchmarks_complete_admission_service_date,
+    enrollment_ending_date,
+    weeks_w_outreach_attempt,
+    tot_outreach_client_contact,
+    tot_in_person_outreaches,
+    tot_hospital_outreaches,
+    tot_virtual_outreaches
+ ) |> 
+#Create weeks_since_selection and possible_outreach_weeks. 
+#The form was created and staff were expected to enter Outreach starting the week of 6/29/26.
+  mutate(
+   weeks_since_selection = floor(
+    as.numeric(
+      difftime(
+       Sys.Date(),
+       roster_added_cohort_date,
+       units = "weeks"
+      )
+    )
+  ),
+  roster_added_cohort_date = as.Date(roster_added_cohort_date),
+  outreach_start_date = pmax(
+      roster_added_cohort_date,
+      as.Date("2026-06-29"),
+     na.rm = TRUE
+    ),
+   outreach_end_date = pmin(
+      benchmarks_enrollment_date,
+      Sys.Date(),
+      na.rm = TRUE
+     ),
+   weeks_possible_outreach = floor(
+         as.numeric(
+           difftime(
+             outreach_end_date,
+             outreach_start_date,
+             units = "weeks"
+           )
+         )
+       ) + 1
+  ) |> 
+ filter(
+  is.na(enrollment_ending_date)
+ ) |> 
+ relocate(
+  weeks_possible_outreach,
+  .after = weeks_w_outreach_attempt
+ ) |> 
+ select(
+  -weeks_since_selection,
+  -outreach_end_date
+ ) 
+
+```
+
+
+```{r}
+#| label: weekly-outreach-summary
+#Keeps one row per outreach note (weekly) by client. Parses out counts of virtual
+#and in-person attempts. Calculates iso week and year.
+outreach_notes_v3 <- complex_care_outreach_notes |> 
+ select(
+  -id,
+  -docserno,
+  -parent_docserno,
+  -visit_time,
+  -cc_outreach_collateral_contact_code
+ ) |>
+ mutate(
+  across(
+   c(
+    num_outreach_attempts_in_person,
+    num_outreach_attempts_phone_virtual,
+    num_outreach_attempts_at_hospital,
+    num_outreach_contact_w_client
+   ),
+   as.numeric
+  )
+ ) |> 
+ filter(
+  cc_outreach_attempt == "Yes"
+ ) |> 
+ mutate(
+  tot_outreach_attempts = 
+   num_outreach_attempts_in_person +
+    num_outreach_attempts_phone_virtual
+ ) |> 
+ select(
+    client_number,
+    added_cohort_date,
+    alert_week,
+    tot_outreach_attempts
+  ) |> 
+ rename(
+  outreach_week = alert_week
+ ) |> 
+  mutate(
+    week_date = lubridate::mdy(
+      stringr::str_remove(outreach_week, "^Week of ")
+    ),
+    iso_week = lubridate::isoweek(week_date),
+    iso_year = lubridate::isoyear(week_date)
+  )
+
+
+weekly_outreach_by_client <- outreach_notes_v3 |> 
+ group_by(
+  client_number,
+  iso_week,
+  iso_year
+ )
+
+
+#Label and order each alert and outreach week
+week_columns <- as.vector(rbind(
+  paste0("alert_week_", 1:53),
+  paste0("outreach_week_", 1:53)
+))
+
+#Create table of all report weeks within the reporting period
+report_weeks <- tibble(
+  week_start = seq.Date(
+    from = as.Date(lubridate::floor_date(
+      params$start, "week", week_start = 1
+    )),
+    to = as.Date(lubridate::floor_date(
+      params$end, "week", week_start = 1
+    )),
+    by = "week"
+  )
+) |>
+  mutate(
+    week_end = week_start + 6,
+    iso_year = lubridate::isoyear(week_start),
+    iso_week = lubridate::isoweek(week_start)
+  )
+
+#Create one row per client for every reporting week. Create an Active status 
+#column to flag if the client was in the cohort, but not enrolled during that week.
+cohort_table_join <- complex_care_full_data |> 
+ filter(
+  !is.na(roster_docserno),
+  !is.na(roster_added_cohort_date),
+  roster_added_cohort_date <= params$end_date,
+  (is.na(benchmarks_enrollment_date)|
+    benchmarks_enrollment_date >= params$start_date
+  ),
+  (is.na(enrollment_ending_date)|
+    enrollment_ending_date >= params$start_date
+  )
+ ) |> 
+  select(
+  client_number,
+    client_last,
+    client_first,
+    enrollment_starting_date,
+    roster_added_cohort_date,
+    benchmarks_enrollment_date,
+    benchmarks_complete_admission_service_date,
+    enrollment_ending_date
+  ) |>
+  distinct() |>
+  crossing(
+   report_weeks
+   ) |>
+  mutate(
+    active = !is.na(roster_added_cohort_date) &
+      roster_added_cohort_date <= week_end &
+      (is.na(benchmarks_enrollment_date) |
+         benchmarks_enrollment_date >= week_start)
+  )
+
+
+
+
+#Join in weekly outreach data
+cohort_outreach_join <- cohort_table_join |> 
+left_join(
+  weekly_outreach_by_client,
+  by = c("client_number",
+         "iso_week"
+     ))
+
+#Join in weekly alerting data
+cohort_outreach_alerting_join <- cohort_outreach_join |> 
+ left_join(
+  weekly_alerts_by_client_outreach,
+  by = c("client_number",
+         "iso_week"
+ )) 
+
+
+#Filter to weeks where teh client was active in the cohort.
+#Create binary indicators for any_outreach and any_alerts
+cohort_outreach_alerting_filtered <- cohort_outreach_alerting_join |> 
+ select(
+  # -benchmarks_enrollment_date,
+  -benchmarks_complete_admission_service_date,
+  -benchmarks_complete_admission_service_date,
+  -enrollment_ending_date,
+  -outreach_week,
+  -week_start,
+  -week_end,
+  -added_cohort_date,
+  -iso_year.y
+ ) |> 
+ filter(
+  active == "TRUE"
+ ) |> 
+ mutate(
+  any_outreach = case_when(
+   !is.na(tot_outreach_attempts) ~ 1,
+   .default = 0
+  ),
+  any_alert = case_when(
+   !is.na(n_alerts) ~ 1,
+   .default = 0
+  )
+ )
+
+distinct_clients <- cohort_outreach_alerting_filtered|>
+  summarise(
+    distinct_clients = n_distinct(client_number, na.rm = TRUE)
+  )
+
+# alerting_data_filtered |>
+#   anti_join(
+#     cohort_outreach_alerting_filtered,
+#     by = "client_number"
+#   ) |>
+#   distinct(client_number, .keep_all = TRUE)
+
+
+non_na_alerts <- cohort_outreach_alerting_filtered |> 
+ filter(
+  !is.na(n_alerts)
+  )
+
+
+#Group by week, year. Gives an overview of how many clients were outreached and how
+#many clients received any number of alerts that week.
+summary_by_week <- cohort_outreach_alerting_filtered |>
+  group_by(
+   iso_week,
+   iso_year.x
+   ) |>
+  summarise(
+    active_clients = n_distinct(
+     client_number
+     ),
+   clients_with_outreach = sum(
+    any_outreach
+    ),
+    pct_clients_with_outreach =
+      100 * mean(any_outreach),
+    clients_with_alerts = sum(
+     any_alert
+     ),
+    clients_with_alerts_and_outreach =
+      sum(
+       any_alert == 1 & any_outreach == 1
+       ),
+    pct_alert_clients_with_outreach = case_when(
+      sum(any_alert) > 0 ~
+      100 * sum(any_alert == 1 & any_outreach == 1) /
+           sum(any_alert),
+       .default = NA_real_
+       ),
+    .groups = "drop"
+  ) |>
+  arrange(
+   iso_week,
+   iso_year.x
+   )
+
+#summary by week formatted to a table
+#Pull the actual date out of ISO format
+summary_by_week_clean <- summary_by_week |> 
+    mutate(
+    week_start = lubridate::floor_date(
+      lubridate::make_date(iso_year.x, 1, 4),
+      unit = "week",
+      week_start = 1
+    ) + 7 * (iso_week - 1),
+    `Week Starting` = format(week_start, "%m/%d/%Y")
+  ) %>%
+  select(-iso_year.x, -iso_week, -week_start) %>%
+  relocate(`Week Starting`) |> 
+  mutate(
+    across(
+      c(pct_clients_with_outreach, pct_alert_clients_with_outreach),
+      ~ scales::percent(.x, accuracy = 0.1, scale = 1)
+    )
+  ) 
+
+summary_by_week_tab <- summary_by_week_clean %>%
+  knitr::kable(
+    col.names = c(
+      "Week Starting",
+      "Active Clients",
+      "Clients with Outreach",
+      "% with Outreach",
+      "Clients with Alerts",
+      "Clients with Alerts and Outreach",
+      "% of Clients with Alerts Receiving Outreach"
+    ),
+    align = c("l", rep("c", 6))
+  ) %>%
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = FALSE
+  ) |> 
+    row_spec(
+    0,
+    bold = TRUE,
+    background = "#BCDFF1"
+  ) %>%
+  column_spec(
+    4,
+    bold = TRUE
+  ) |> 
+   column_spec(
+    7,
+    bold = TRUE
+  )
+ 
+
+summary_by_week_tab
+
+```
+
+```{r}
+selected_year <- 2026
+selected_week <- 40
+
+weekly_client_detail <- cohort_outreach_alerting_filtered %>%
+  filter(
+    iso_year.x == selected_year,
+    iso_week == selected_week
+  ) %>%
+  mutate(
+    alert_status = case_when(
+      any_alert == 1 ~ "Yes",
+      any_alert == 0 ~ "No",
+      TRUE ~ "Unknown"
+    ),
+    outreach_status = case_when(
+      any_outreach == 1 ~ "Yes",
+      any_outreach == 0 ~ "No",
+      TRUE ~ "Unknown"
+    )
+  ) %>%
+  arrange(
+    desc(
+      any_alert
+      ),
+    any_outreach,
+    client_last,
+    client_number
+    ) |> 
+  filter(
+    any_outreach ==1 |
+      any_alert ==1
+  ) |> 
+  select(
+    -enrollment_starting_date,
+    -iso_year.x,
+    -iso_week,
+    -any_outreach,
+    -any_alert
+  )
+
+```
+

@@ -6,28 +6,48 @@ format: html
 {{< include index.qmd >}}
 
 :::: {.columns}
+## Overview
+::: {.column width="38%"}
 
-::: {.column width="50%"}
-### New Clients by Program Segment
+```{r}
+#| echo: false
+#| include: true
+#| fig-width: 6
+#| fig-height: 2
+#| fig-cap: ~38% of referrals to BEACN were selected into the cohort.
+
+quarterly_counts_plot
+
+```
+:::
+
+::: {.column width="12%"}
 ```{r}
 #| echo: false
 #| include: true
 
-monthly_table
+count_enrolled_html
+
 ```
 :::
 
-::: {.column width="10%"}
+::: {.column width="12%"}
+```{r}
+#| echo: false
+#| include: true
+
+count_admitted_html
+
+```
 :::
 
-::: {.column width="40%"}
-### Progress Toward FY26 Admission Goal
+::: {.column width="26%"}
 ```{r}
 #| echo: false
 #| include: true
 #| fig-width: 5
-#| fig-height: 0.5
-#| fig-cap: "As of June 30th 2026, 29 of 35 admissions had been achieved."
+#| fig-height: 1
+#| fig-cap: "Progress Toward Annual Goal of 35 Client Admissions"
 
 print(ytd_goal_plot)
 ```
@@ -36,44 +56,61 @@ print(ytd_goal_plot)
 
 ::::
 
-<!-- New Row -->
-### Referral Source and Cohort Selection
+
 :::: {.columns}
 
-::: {.column width = "50%"}
-
+::: {.column width="50%"}
+### Active Clients by Program Segment
 ```{r}
 #| echo: false
 #| include: true
-#| fig-cap: "Note: Counts reflect distinct clients. Some clients were referred multiple times within the quarter"
+#| fig-width: 4
+#| fig-height: 2.5
 
-ref_source_table
+segment_table_html
 
 ```
 :::
 
-::: {.column width="10%"}
+::: {.column width="5%"}
 :::
 
-::: {.column width = "40%"}
-<div style="margin-top: 50px;"></div>
-<!-- #### Rationale if Not Selected -->
+::: {.column width="43%"}
+### Dismissals from Cohort
 ```{r}
 #| echo: false
 #| include: true
-#| fig-cap: "Note: Counts are based on referrals, not unique clients"
-rationale_not_selected_tab
+#| fig-width: 4
+#| fig-height: 2.5
+
+discharge_summary_plot
+
 ```
 
 :::
 
 ::::
 
-<!-- New Row-->
-
+<!-- New Row -->
+## Referral Source and Cohort Selection
 :::: {.columns}
 
-::: {.column width = "50%"}
+::: {.column width = "48%"}
+
+```{r}
+#| echo: false
+#| include: true
+#| fig-width: 4
+#| fig-height: 2.5
+
+ref_source_table
+
+```
+<div class="table-note">
+Note: Counts reflect distinct clients. Some clients were referred multiple times within the quarter.
+</div>
+
+:::{.other-outcomes .compact}
 ```{r}
 #| echo: false
 #| include: true
@@ -83,33 +120,183 @@ htmltools::HTML(other_outcomes_take2)
 
 ```
 :::
+:::
 
-::: {.column width="10%"}
+::: {.column width="5%"}
 :::
 
 ::: {.column width = "40%"}
-### Dismissals from Cohort
+<!-- #### Rationale if Not Selected -->
 ```{r}
 #| echo: false
 #| include: true
-discharge_summary_plot
+#| fig-width: 3
+#| fig-height: 2.5
+
+rationale_not_selected_tab
 ```
+<div class="table-note">
+Note: Counts are based on referrals, not unique clients
+</div>
 :::
 
 ::::
 
+
+\newpage 
+## Alerting 
 :::: {.columns}
 
-::: {.column width = "100%"}
+::: {.column width = "30%"}
+### Alerts by Client Status
+```{r}
+#| echo: false
+#| include: true
+#| fig-width: 2.5
+#| fig-height: 2
+
+alerts_month_status_tab
+
+```
+:::
+
+::: {.column width = "3%"}
+
+:::
+
+
+::: {.column width = "65%"}
+### Count of Alerts by Day & Hour 
+```{r}
+#| echo: false
+#| include: true
+#| fig-width: 8.5
+#| fig-height: 3
+
+heatmap
+
+```
+:::
+::::
+
+## Utilization 
 ### Hospital Encounters by Client Status
 ```{r}
 #| echo: false
 #| include: true
+
 encounter_summary_tab
 
 htmltools::HTML(encounter_summary_notes)
 
 ```
+
+### Enrolled Clients' Hospital Encounters (N = `r n_clients_chart`)
+```{r}
+#| echo: false
+#| include: true
+#| fig-width: 6
+#| fig-height: 3.5
+#| fig-cap: "Includes all clients enrolled for some length of time during the quarter."
+
+adm_counts_by_enrolled_client
+
+```
+
+
+:::: {.columns style="align-items: flex-start;"}
+::: {.column width = "75%"}
+### Hospital Utilization Pre- and Post-Enrollment (N = `r n_clients`)
+```{r}
+#| echo: false
+#| include: true
+#| fig-width: 8
+#| fig-height: 4
+quarterly_becn_utilization_pre_post_plot
+
+```
 :::
+
+
+::: {.column width = "20%"}
+###  30-Day Return Rates
+
+```{r}
+#| echo: false
+#| include: true
+
+
+ed_card_tbl
+
+```
+
+
+```{r}
+#| echo: false
+#| include: true
+
+
+ip_card_tbl
+
+```
+
+:::
+
+::::
+
+:::: {.columns}
+::: {.column width = "95%"}
+##  Total Adjusted Charges Pre- and Post-Enrollment
+```{r}
+#| echo: false
+#| include: true
+#| fig-width: 5
+#| fig-height: 1.5
+
+tot_adj_charges_all_clients
+```
+:::
+::::
+
+## Client Status Over Time
+
+:::: {.columns}
+::: {.column width = "40%"}
+### Housing
+```{r}
+#| echo: false
+#| include: true
+
+binary_housing_plot
+```
+:::
+::: {.column width = "5%"}
+
+:::
+
+::: {.column width = "40%"}
+### Insurance
+```{r}
+#| echo: false
+#| include: true
+
+binary_insurance_plot
+```
+:::
+::::
+
+:::: {.columns}
+::: {.column width = "40%"}
+### Shelter Bed Utilization
+```{r}
+#| echo: false
+#| include: true
+
+htmltools::HTML(three_beds_html)
+
+```
+:::
+
+::: {.column width = "50%"}
 
 ::::
